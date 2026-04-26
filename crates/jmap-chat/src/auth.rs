@@ -162,6 +162,20 @@ impl AuthProvider for CustomCaAuth {
 }
 
 // ---------------------------------------------------------------------------
+// Blanket impl for Box<dyn AuthProvider>
+// ---------------------------------------------------------------------------
+
+impl AuthProvider for Box<dyn AuthProvider> {
+    fn build_client(&self) -> Result<reqwest::Client, ClientError> {
+        (**self).build_client()
+    }
+
+    fn auth_header(&self) -> Option<(HeaderName, HeaderValue)> {
+        (**self).auth_header()
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
