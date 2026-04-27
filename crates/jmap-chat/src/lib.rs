@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod blob;
 pub mod client;
 pub mod error;
 pub mod jmap;

@@ -2451,3 +2451,44 @@ async fn push_subscription_set_returns_typed_response() {
         "accountId must be null for PushSubscription/set"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Test 57: blob_lookup — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: blob_lookup_response.json — list[0].matched_ids["Message"] contains
+/// two IDs; notFound contains one ID. Verifies BlobLookupResponse deserialization
+/// and correct use of urn:ietf:params:jmap:blob2 capability.
+#[tokio::test]
+async fn blob_lookup_returns_typed_response() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("blob_lookup_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must not fail");
+    let session = test_session(&server.uri());
+
+    let result = client
+        .blob_lookup(&session, &["blob-001", "blob-missing"], Some(&["Message"]))
+        .await
+        .expect("blob_lookup must succeed");
+
+    // Oracle: fixture list[0].id == "blob-001" with two matched Message IDs
+    assert_eq!(result.list.len(), 1);
+    assert_eq!(result.list[0].id, "blob-001");
+    let msgs = result.list[0]
+        .matched_ids
+        .get("Message")
+        .expect("Message key must be present");
+    assert_eq!(msgs.len(), 2);
+    assert!(msgs.contains(&"msg-123".to_string()));
+    assert!(msgs.contains(&"msg-456".to_string()));
+
+    // Oracle: fixture notFound == ["blob-missing"]
+    assert!(result.not_found.contains(&"blob-missing".to_string()));
+}

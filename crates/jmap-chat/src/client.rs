@@ -16,9 +16,9 @@ use futures::StreamExt;
 /// [`fetch_session`]: JmapChatClient::fetch_session
 #[derive(Clone)]
 pub struct JmapChatClient {
-    base_url: String,
-    auth: Arc<dyn AuthProvider>,
-    http: reqwest::Client,
+    pub(crate) base_url: String,
+    pub(crate) auth: Arc<dyn AuthProvider>,
+    pub(crate) http: reqwest::Client,
 }
 
 impl JmapChatClient {
@@ -37,7 +37,7 @@ impl JmapChatClient {
         })
     }
 
-    fn auth_failed_if(status: reqwest::StatusCode) -> Result<(), ClientError> {
+    pub(crate) fn auth_failed_if(status: reqwest::StatusCode) -> Result<(), ClientError> {
         if status == 401 || status == 403 {
             Err(ClientError::AuthFailed(status.as_u16()))
         } else {
@@ -78,6 +78,12 @@ impl JmapChatClient {
         }
         if session.event_source_url.is_empty() {
             return Err(ClientError::InvalidSession("eventSourceUrl is empty"));
+        }
+        if session.upload_url.is_empty() {
+            return Err(ClientError::InvalidSession("uploadUrl is empty"));
+        }
+        if session.download_url.is_empty() {
+            return Err(ClientError::InvalidSession("downloadUrl is empty"));
         }
 
         Ok(session)

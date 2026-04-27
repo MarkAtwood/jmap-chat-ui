@@ -1,0 +1,15 @@
+{
+  "methodResponses": [["Blob/lookup", {
+    "accountId": "account1",
+    "list": [
+      {
+        "id": "blob-001",
+        "matchedIds": {
+          "Message": ["msg-123", "msg-456"]
+        }
+      }
+    ],
+    "notFound": ["blob-missing"]
+  }, "r1"]],
+  "sessionState": "sess-abc"
+}

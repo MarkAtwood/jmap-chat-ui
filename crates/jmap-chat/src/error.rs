@@ -24,6 +24,12 @@ pub enum ClientError {
     #[error("parse error: {0}")]
     Parse(String),
 
+    /// Downloaded blob SHA-256 does not match the expected digest. Indicates
+    /// in-transit corruption or a misbehaving server. Not retriable without
+    /// re-fetching metadata.
+    #[error("blob integrity check failed: expected {expected}, got {actual}")]
+    BlobIntegrityMismatch { expected: String, actual: String },
+
     /// A caller-supplied argument violates a precondition (e.g. empty token,
     /// colon in BasicAuth username, missing required filter field).
     #[error("invalid argument: {0}")]
