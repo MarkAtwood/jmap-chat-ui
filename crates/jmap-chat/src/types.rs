@@ -366,6 +366,9 @@ pub struct ChatMember {
 pub enum ChatMemberRole {
     Admin,
     Member,
+    /// Catch-all for any unrecognized wire value.
+    #[serde(other)]
+    Unknown,
 }
 
 // ---------------------------------------------------------------------------
@@ -395,6 +398,9 @@ pub struct ChannelPermission {
 pub enum ChannelPermissionTargetType {
     Role,
     Member,
+    /// Catch-all for any unrecognized wire value.
+    #[serde(other)]
+    Unknown,
 }
 
 // ---------------------------------------------------------------------------
@@ -496,6 +502,9 @@ pub enum ChatKind {
     Direct,
     Group,
     Channel,
+    /// Catch-all for any unrecognized wire value. Clients SHOULD treat as unsupported.
+    #[serde(other)]
+    Unknown,
 }
 
 // ---------------------------------------------------------------------------
@@ -607,6 +616,9 @@ pub enum DeliveryState {
     Delivered,
     Failed,
     Received,
+    /// Catch-all for any unrecognized wire value.
+    #[serde(other)]
+    Unknown,
 }
 
 // ---------------------------------------------------------------------------
@@ -851,6 +863,9 @@ pub enum OwnerPresence {
     Busy,
     Invisible,
     Offline,
+    /// Catch-all for any unrecognized wire value.
+    #[serde(other)]
+    Unknown,
 }
 
 // ---------------------------------------------------------------------------
@@ -871,15 +886,17 @@ pub enum OwnerPresence {
 pub struct ChatStreamEnable {
     /// Discriminator. Always `"ChatStreamEnable"` on the wire.
     #[serde(rename = "@type")]
-    pub msg_type: String,
+    pub(crate) msg_type: String,
     /// Which event categories to receive: `"typing"` and/or `"presence"`.
     /// Unrecognized values alongside recognized ones are silently ignored by the server.
     pub data_types: Vec<String>,
     /// Chat IDs to receive typing events for. `None` = all member chats.
     /// Only relevant when `"typing"` is in `data_types`.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub chat_ids: Option<Vec<Id>>,
     /// Contact IDs to receive presence events for. `None` = all known contacts.
     /// Only relevant when `"presence"` is in `data_types`.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_ids: Option<Vec<Id>>,
 }
 
@@ -908,7 +925,7 @@ impl ChatStreamEnable {
 pub struct ChatStreamDisable {
     /// Discriminator. Always `"ChatStreamDisable"` on the wire.
     #[serde(rename = "@type")]
-    pub msg_type: String,
+    pub(crate) msg_type: String,
 }
 
 impl Default for ChatStreamDisable {
@@ -929,7 +946,7 @@ impl Default for ChatStreamDisable {
 pub struct ChatTypingEvent {
     /// Discriminator. Always `"ChatTypingEvent"` on the wire.
     #[serde(rename = "@type")]
-    pub msg_type: String,
+    pub(crate) msg_type: String,
     /// The chat in which typing occurred.
     pub chat_id: Id,
     /// ChatContact.id of the user who is typing. MUST NOT be `"self"`.
@@ -948,7 +965,7 @@ pub struct ChatTypingEvent {
 pub struct ChatPresenceEvent {
     /// Discriminator. Always `"ChatPresenceEvent"` on the wire.
     #[serde(rename = "@type")]
-    pub msg_type: String,
+    pub(crate) msg_type: String,
     /// The ChatContact whose presence changed.
     pub contact_id: Id,
     /// Updated presence state.
@@ -1329,5 +1346,71 @@ mod tests {
                 "round-trip failed for {uri}"
             );
         }
+    }
+
+    /// Oracle: unknown ChatKind wire value must deserialize to Unknown, not fail.
+    /// Trigger: server sends a new chat kind (e.g. "thread") not yet in this crate.
+    #[test]
+    fn test_chat_kind_unknown_wire_value_becomes_unknown() {
+        let v: ChatKind = serde_json::from_str("\"thread\"").unwrap();
+        assert_eq!(v, ChatKind::Unknown);
+    }
+
+    /// Oracle: unknown ChatMemberRole wire value must deserialize to Unknown, not fail.
+    #[test]
+    fn test_chat_member_role_unknown_wire_value_becomes_unknown() {
+        let v: ChatMemberRole = serde_json::from_str("\"owner\"").unwrap();
+        assert_eq!(v, ChatMemberRole::Unknown);
+    }
+
+    /// Oracle: unknown DeliveryState wire value must deserialize to Unknown, not fail.
+    #[test]
+    fn test_delivery_state_unknown_wire_value_becomes_unknown() {
+        let v: DeliveryState = serde_json::from_str("\"bounced\"").unwrap();
+        assert_eq!(v, DeliveryState::Unknown);
+    }
+
+    /// Oracle: unknown OwnerPresence wire value must deserialize to Unknown, not fail.
+    #[test]
+    fn test_owner_presence_unknown_wire_value_becomes_unknown() {
+        let v: OwnerPresence = serde_json::from_str("\"dnd\"").unwrap();
+        assert_eq!(v, OwnerPresence::Unknown);
+    }
+
+    /// Oracle: unknown ChannelPermissionTargetType wire value must deserialize to Unknown, not fail.
+    #[test]
+    fn test_channel_permission_target_type_unknown_wire_value_becomes_unknown() {
+        let v: ChannelPermissionTargetType = serde_json::from_str("\"group\"").unwrap();
+        assert_eq!(v, ChannelPermissionTargetType::Unknown);
+    }
+
+    /// Oracle: ChatStreamEnable with None optional fields must serialize WITHOUT those keys.
+    /// Spec: absent = all member chats/contacts. Sending null is non-conformant.
+    #[test]
+    fn test_chat_stream_enable_none_fields_absent_in_serialization() {
+        let msg = ChatStreamEnable::new(vec!["typing".to_string()], None, None);
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(
+            parsed.get("chatIds").is_none(),
+            "chatIds must be absent when None, got: {json}"
+        );
+        assert!(
+            parsed.get("contactIds").is_none(),
+            "contactIds must be absent when None, got: {json}"
+        );
+    }
+
+    /// Oracle: deserialize_optional_nullable_string must error on non-null, non-string JSON values.
+    #[test]
+    fn test_deserialize_optional_nullable_string_rejects_non_string() {
+        // statusText: 42 (number) — must not parse to Ok
+        let json =
+            r#"{"@type":"ChatPresenceEvent","contactId":"x","presence":"online","statusText":42}"#;
+        let result: Result<ChatPresenceEvent, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "number for statusText must be a deserialization error"
+        );
     }
 }
