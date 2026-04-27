@@ -12,14 +12,26 @@ use crate::jmap::UTCDate;
 /// - 2–6 days ago: `"Mon 14:00"` (weekday abbreviation + HH:MM)
 /// - Older: `"Apr 12"` (month abbreviation + day number)
 ///
+/// **UTC dates only.** Both `dt` and the implicit current time are treated as
+/// UTC wall-clock dates. Callers in non-UTC time zones that need local-day
+/// semantics should use [`format_receipt_timestamp_at`] with a local-adjusted
+/// reference time.
+///
 /// The full-precision `UTCDate` is preserved internally; this function only
 /// affects display output. Never use this for sorting or comparison.
+///
+/// **Stability note**: The exact output strings (`"Today"`, `"Jan 15"`, etc.)
+/// are informational display strings, not a stable API contract. They may
+/// change in future versions (e.g., to add year for old dates, or for i18n).
 pub fn format_receipt_timestamp(dt: &UTCDate) -> String {
     format_receipt_timestamp_at(dt, Utc::now())
 }
 
-/// Like [`format_receipt_timestamp`] but accepts an explicit reference time
-/// so that unit tests are deterministic.
+/// Like [`format_receipt_timestamp`] but accepts an explicit reference time,
+/// allowing deterministic unit tests and caller-managed timezone offset.
+///
+/// Both `dt` and `now` are treated as UTC. To display in local time, adjust
+/// `now` to the desired reference point before calling.
 pub fn format_receipt_timestamp_at(dt: &UTCDate, now: DateTime<Utc>) -> String {
     let parsed = match dt.as_str().parse::<DateTime<Utc>>() {
         Ok(d) => d,
@@ -30,8 +42,9 @@ pub fn format_receipt_timestamp_at(dt: &UTCDate, now: DateTime<Utc>) -> String {
     let now_date = now.date_naive();
     let days_diff = (now_date - dt_date).num_days();
 
+    // Negative days_diff means dt is in the future (clock skew); treat as today.
     match days_diff {
-        0 => "Today".to_string(),
+        ..=0 => "Today".to_string(),
         1 => "Yesterday".to_string(),
         2..=6 => {
             let weekday = match parsed.weekday() {
@@ -89,8 +102,8 @@ mod tests {
         assert_eq!(format_receipt_timestamp_at(&dt, now()), "Yesterday");
     }
 
-    /// Oracle: 3 days ago — Wednesday, 2024-03-17 — formats as "Sun 08:03".
-    /// Note: 2024-03-17 is a Sunday. No seconds in output.
+    /// Oracle: 3 days ago (2024-03-17 is a Sunday) — formats as "Sun 08:03".
+    /// Note: no seconds in output.
     #[test]
     fn test_within_week_returns_weekday_and_time() {
         let dt = UTCDate::from_trusted("2024-03-17T08:03:59Z");
@@ -108,6 +121,19 @@ mod tests {
         let dt = UTCDate::from_trusted("2024-01-15T09:00:00Z");
         let result = format_receipt_timestamp_at(&dt, now());
         assert_eq!(result, "Jan 15");
+    }
+
+    /// Oracle: future timestamp (dt > now) formats as "Today" rather than falling to "Apr 12".
+    /// Trigger: server clock skew causes sentAt one day ahead of client now.
+    #[test]
+    fn test_future_timestamp_formats_as_today() {
+        // 2024-03-21: one calendar day after now (2024-03-20) — days_diff = -1
+        let dt = UTCDate::from_trusted("2024-03-21T10:00:00Z");
+        assert_eq!(
+            format_receipt_timestamp_at(&dt, now()),
+            "Today",
+            "future timestamp must display as Today, not as a past date"
+        );
     }
 
     /// Oracle: seconds precision is never exposed in any output format.
