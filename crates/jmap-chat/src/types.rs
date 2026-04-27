@@ -374,15 +374,46 @@ pub struct ChatMember {
 /// Role of a participant in a group Chat.
 /// Spec: draft-atwood-jmap-chat-00 §4.8
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ChatMemberRole {
     Admin,
     Member,
-    /// Catch-all for any unrecognized wire value from a future spec version.
-    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
-    #[serde(other)]
-    Unknown,
+    /// Any unrecognized role string, preserved as-is for lossless round-trip.
+    Unknown(String),
+}
+
+impl ChatMemberRole {
+    /// The canonical wire string for this role.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Admin => "admin",
+            Self::Member => "member",
+            Self::Unknown(s) => s.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for ChatMemberRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl serde::Serialize for ChatMemberRole {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChatMemberRole {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+        Ok(match raw.as_str() {
+            "admin" => ChatMemberRole::Admin,
+            "member" => ChatMemberRole::Member,
+            _ => ChatMemberRole::Unknown(raw),
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -511,16 +542,49 @@ pub struct Chat {
 /// The kind of a Chat conversation.
 /// Spec: draft-atwood-jmap-chat-00 §4.9
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ChatKind {
     Direct,
     Group,
     Channel,
-    /// Catch-all for any unrecognized wire value from a future spec version.
-    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
-    #[serde(other)]
-    Unknown,
+    /// Any unrecognized kind string, preserved as-is for lossless round-trip.
+    Unknown(String),
+}
+
+impl ChatKind {
+    /// The canonical wire string for this chat kind.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Direct => "direct",
+            Self::Group => "group",
+            Self::Channel => "channel",
+            Self::Unknown(s) => s.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for ChatKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl serde::Serialize for ChatKind {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChatKind {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+        Ok(match raw.as_str() {
+            "direct" => ChatKind::Direct,
+            "group" => ChatKind::Group,
+            "channel" => ChatKind::Channel,
+            _ => ChatKind::Unknown(raw),
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -982,18 +1046,55 @@ pub struct PresenceStatus {
 /// Self-reported availability for a PresenceStatus record.
 /// Spec: draft-atwood-jmap-chat-00 §4.20
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq)]
 pub enum OwnerPresence {
     Online,
     Away,
     Busy,
     Invisible,
     Offline,
-    /// Catch-all for any unrecognized wire value from a future spec version.
-    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
-    #[serde(other)]
-    Unknown,
+    /// Any unrecognized presence string, preserved as-is for lossless round-trip.
+    Unknown(String),
+}
+
+impl OwnerPresence {
+    /// The canonical wire string for this presence state.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Online => "online",
+            Self::Away => "away",
+            Self::Busy => "busy",
+            Self::Invisible => "invisible",
+            Self::Offline => "offline",
+            Self::Unknown(s) => s.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for OwnerPresence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl serde::Serialize for OwnerPresence {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for OwnerPresence {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+        Ok(match raw.as_str() {
+            "online" => OwnerPresence::Online,
+            "away" => OwnerPresence::Away,
+            "busy" => OwnerPresence::Busy,
+            "invisible" => OwnerPresence::Invisible,
+            "offline" => OwnerPresence::Offline,
+            _ => OwnerPresence::Unknown(raw),
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1715,7 +1816,7 @@ mod tests {
     #[test]
     fn test_chat_kind_unknown_wire_value_becomes_unknown() {
         let v: ChatKind = serde_json::from_str("\"thread\"").unwrap();
-        assert_eq!(v, ChatKind::Unknown);
+        assert_eq!(v, ChatKind::Unknown("thread".into()));
     }
 
     /// Oracle: unit Unknown catch-all variants serialize as the literal string "unknown".
@@ -1724,15 +1825,7 @@ mod tests {
     #[test]
     fn test_unknown_catch_all_variants_serialize_as_literal_unknown() {
         assert_eq!(
-            serde_json::to_string(&ChatKind::Unknown).unwrap(),
-            "\"unknown\""
-        );
-        assert_eq!(
             serde_json::to_string(&DeliveryState::Unknown).unwrap(),
-            "\"unknown\""
-        );
-        assert_eq!(
-            serde_json::to_string(&OwnerPresence::Unknown).unwrap(),
             "\"unknown\""
         );
         assert_eq!(
@@ -1742,6 +1835,24 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&QuotaScope::Unknown).unwrap(),
             "\"unknown\""
+        );
+    }
+
+    /// Oracle: ChatKind::Unknown(String), ChatMemberRole::Unknown(String), and
+    /// OwnerPresence::Unknown(String) preserve and re-emit the original wire string.
+    #[test]
+    fn test_unknown_tuple_variants_preserve_original_string() {
+        assert_eq!(
+            serde_json::to_string(&ChatKind::Unknown("future-kind".into())).unwrap(),
+            "\"future-kind\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ChatMemberRole::Unknown("future-role".into())).unwrap(),
+            "\"future-role\""
+        );
+        assert_eq!(
+            serde_json::to_string(&OwnerPresence::Unknown("dnd".into())).unwrap(),
+            "\"dnd\""
         );
     }
 
@@ -1768,10 +1879,7 @@ mod tests {
             serde_json::to_string(&PushUrgency::VeryLow).unwrap(),
             "\"very-low\""
         );
-        assert_eq!(
-            serde_json::to_string(&PushUrgency::Low).unwrap(),
-            "\"low\""
-        );
+        assert_eq!(serde_json::to_string(&PushUrgency::Low).unwrap(), "\"low\"");
         assert_eq!(
             serde_json::to_string(&PushUrgency::Normal).unwrap(),
             "\"normal\""
@@ -1808,7 +1916,7 @@ mod tests {
     #[test]
     fn test_chat_member_role_unknown_wire_value_becomes_unknown() {
         let v: ChatMemberRole = serde_json::from_str("\"owner\"").unwrap();
-        assert_eq!(v, ChatMemberRole::Unknown);
+        assert_eq!(v, ChatMemberRole::Unknown("owner".into()));
     }
 
     /// Oracle: unknown DeliveryState wire value must deserialize to Unknown, not fail.
@@ -1822,7 +1930,7 @@ mod tests {
     #[test]
     fn test_owner_presence_unknown_wire_value_becomes_unknown() {
         let v: OwnerPresence = serde_json::from_str("\"dnd\"").unwrap();
-        assert_eq!(v, OwnerPresence::Unknown);
+        assert_eq!(v, OwnerPresence::Unknown("dnd".into()));
     }
 
     /// Oracle: unknown ChannelPermissionTargetType wire value must deserialize to Unknown, not fail.
@@ -2042,6 +2150,122 @@ mod tests {
         assert_eq!(
             BodyType::Unknown("application/x-custom".to_string()).as_str(),
             "application/x-custom"
+        );
+    }
+
+    /// Oracle: spec §4.9 — all three known ChatKind variants serialize to exact wire strings.
+    #[test]
+    fn chat_kind_serialize_known_variants() {
+        // Wire strings from spec §4.9: "direct", "group", "channel"
+        assert_eq!(
+            serde_json::to_string(&ChatKind::Direct).unwrap(),
+            "\"direct\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ChatKind::Group).unwrap(),
+            "\"group\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ChatKind::Channel).unwrap(),
+            "\"channel\""
+        );
+    }
+
+    /// Oracle: spec §4.9 — all three known wire strings deserialize to the correct ChatKind variants.
+    #[test]
+    fn chat_kind_deserialize_known_variants() {
+        // Wire strings from spec §4.9, hardcoded as the independent oracle.
+        assert_eq!(
+            serde_json::from_str::<ChatKind>("\"direct\"").unwrap(),
+            ChatKind::Direct
+        );
+        assert_eq!(
+            serde_json::from_str::<ChatKind>("\"group\"").unwrap(),
+            ChatKind::Group
+        );
+        assert_eq!(
+            serde_json::from_str::<ChatKind>("\"channel\"").unwrap(),
+            ChatKind::Channel
+        );
+    }
+
+    /// Oracle: spec §4.8 — both known ChatMemberRole variants serialize to exact wire strings.
+    #[test]
+    fn chat_member_role_serialize_known_variants() {
+        // Wire strings from spec §4.8: "admin", "member"
+        assert_eq!(
+            serde_json::to_string(&ChatMemberRole::Admin).unwrap(),
+            "\"admin\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ChatMemberRole::Member).unwrap(),
+            "\"member\""
+        );
+    }
+
+    /// Oracle: spec §4.8 — both known wire strings deserialize to the correct ChatMemberRole variants.
+    #[test]
+    fn chat_member_role_deserialize_known_variants() {
+        // Wire strings from spec §4.8, hardcoded as the independent oracle.
+        assert_eq!(
+            serde_json::from_str::<ChatMemberRole>("\"admin\"").unwrap(),
+            ChatMemberRole::Admin
+        );
+        assert_eq!(
+            serde_json::from_str::<ChatMemberRole>("\"member\"").unwrap(),
+            ChatMemberRole::Member
+        );
+    }
+
+    /// Oracle: spec §4.20 — all five known OwnerPresence variants serialize to exact wire strings.
+    #[test]
+    fn owner_presence_serialize_known_variants() {
+        // Wire strings from spec §4.20: "online", "away", "busy", "invisible", "offline"
+        assert_eq!(
+            serde_json::to_string(&OwnerPresence::Online).unwrap(),
+            "\"online\""
+        );
+        assert_eq!(
+            serde_json::to_string(&OwnerPresence::Away).unwrap(),
+            "\"away\""
+        );
+        assert_eq!(
+            serde_json::to_string(&OwnerPresence::Busy).unwrap(),
+            "\"busy\""
+        );
+        assert_eq!(
+            serde_json::to_string(&OwnerPresence::Invisible).unwrap(),
+            "\"invisible\""
+        );
+        assert_eq!(
+            serde_json::to_string(&OwnerPresence::Offline).unwrap(),
+            "\"offline\""
+        );
+    }
+
+    /// Oracle: spec §4.20 — all five known wire strings deserialize to the correct OwnerPresence variants.
+    #[test]
+    fn owner_presence_deserialize_known_variants() {
+        // Wire strings from spec §4.20, hardcoded as the independent oracle.
+        assert_eq!(
+            serde_json::from_str::<OwnerPresence>("\"online\"").unwrap(),
+            OwnerPresence::Online
+        );
+        assert_eq!(
+            serde_json::from_str::<OwnerPresence>("\"away\"").unwrap(),
+            OwnerPresence::Away
+        );
+        assert_eq!(
+            serde_json::from_str::<OwnerPresence>("\"busy\"").unwrap(),
+            OwnerPresence::Busy
+        );
+        assert_eq!(
+            serde_json::from_str::<OwnerPresence>("\"invisible\"").unwrap(),
+            OwnerPresence::Invisible
+        );
+        assert_eq!(
+            serde_json::from_str::<OwnerPresence>("\"offline\"").unwrap(),
+            OwnerPresence::Offline
         );
     }
 }
