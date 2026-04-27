@@ -1,5 +1,6 @@
 use super::{
-    ChangesResponse, GetResponse, MessageCreateInput, MessageQueryInput, QueryResponse, SetResponse,
+    ChangesResponse, GetResponse, MessageCreateInput, MessageQueryInput, MessageUpdateInput,
+    QueryChangesResponse, QueryResponse, ReactionChange, SetResponse,
 };
 
 impl crate::client::JmapChatClient {
@@ -68,6 +69,12 @@ impl crate::client::JmapChatClient {
         if let Some(a) = input.has_attachment {
             filter.insert("hasAttachment".into(), a.into());
         }
+        if let Some(t) = input.text {
+            filter.insert("text".into(), t.into());
+        }
+        if let Some(tid) = input.thread_root_id {
+            filter.insert("threadRootId".into(), tid.into());
+        }
         let filter_val = if filter.is_empty() {
             serde_json::Value::Null
         } else {
@@ -111,7 +118,8 @@ impl crate::client::JmapChatClient {
     ///
     /// `client_id` is a caller-supplied ULID used as the creation key. The server
     /// maps it to the server-assigned Message id in `SetResponse.created`.
-    /// Only the `create` operation is implemented here; update/destroy are Phase 4.
+    /// For update and destroy operations see [`Self::message_set_update`] and
+    /// [`Self::message_set_destroy`].
     pub async fn message_create(
         &self,
         session: &crate::jmap::Session,
@@ -132,6 +140,115 @@ impl crate::client::JmapChatClient {
             "create": { input.client_id: create_obj },
         });
         let (call_id, req) = super::build_request("Message/set", args);
+        let resp = self.call(api_url, &req).await?;
+        crate::client::extract_response(resp, call_id)
+    }
+
+    /// Update Message properties (RFC 8620 §5.3 / JMAP Chat §4.5 Message/set).
+    ///
+    /// Issues an `update` operation patching only the fields present in
+    /// `input`. Supports body edits (author-only), reaction changes (JSON
+    /// Pointer patch on `reactions` map), read-receipt updates (`readAt`),
+    /// and chat-level deletion (`deletedAt` / `deletedForAll`).
+    ///
+    /// If all optional fields are `None` and `reaction_changes` is empty, an
+    /// empty patch object is sent. RFC 8620 §5.3 permits this; the server
+    /// treats it as a no-op but still returns the object in `updated`.
+    pub async fn message_set_update(
+        &self,
+        session: &crate::jmap::Session,
+        input: &MessageUpdateInput<'_>,
+    ) -> Result<SetResponse, crate::error::ClientError> {
+        let (api_url, account_id) = Self::session_parts(session)?;
+        let mut patch = serde_json::Map::new();
+        if let Some(b) = input.body {
+            patch.insert("body".into(), b.into());
+        }
+        if let Some(bt) = input.body_type {
+            patch.insert("bodyType".into(), bt.into());
+        }
+        if let Some(ra) = input.read_at {
+            patch.insert("readAt".into(), ra.as_str().into());
+        }
+        if let Some(da) = input.deleted_at {
+            patch.insert("deletedAt".into(), da.as_str().into());
+        }
+        if let Some(dfa) = input.deleted_for_all {
+            patch.insert("deletedForAll".into(), dfa.into());
+        }
+        for change in input.reaction_changes {
+            match change {
+                ReactionChange::Add {
+                    sender_reaction_id,
+                    emoji,
+                    sent_at,
+                } => {
+                    patch.insert(
+                        format!("reactions/{sender_reaction_id}"),
+                        serde_json::json!({"emoji": emoji, "sentAt": sent_at.as_str()}),
+                    );
+                }
+                ReactionChange::Remove { sender_reaction_id } => {
+                    patch.insert(
+                        format!("reactions/{sender_reaction_id}"),
+                        serde_json::Value::Null,
+                    );
+                }
+            }
+        }
+        let args = serde_json::json!({
+            "accountId": account_id,
+            "update": { input.id: serde_json::Value::Object(patch) },
+        });
+        let (call_id, req) = super::build_request("Message/set", args);
+        let resp = self.call(api_url, &req).await?;
+        crate::client::extract_response(resp, call_id)
+    }
+
+    /// Destroy Message objects (RFC 8620 §5.3 / Message/set destroy).
+    ///
+    /// Permanently removes the listed message IDs from the account.
+    /// `ids` must be non-empty; the guard fires before any network call.
+    pub async fn message_set_destroy(
+        &self,
+        session: &crate::jmap::Session,
+        ids: &[&str],
+    ) -> Result<SetResponse, crate::error::ClientError> {
+        if ids.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "message_set_destroy: ids may not be empty".into(),
+            ));
+        }
+        let (api_url, account_id) = Self::session_parts(session)?;
+        let args = serde_json::json!({
+            "accountId": account_id,
+            "destroy": ids,
+        });
+        let (call_id, req) = super::build_request("Message/set", args);
+        let resp = self.call(api_url, &req).await?;
+        crate::client::extract_response(resp, call_id)
+    }
+
+    /// Fetch query-result changes for Message since `since_query_state`
+    /// (RFC 8620 §5.6 / Message/queryChanges).
+    ///
+    /// Returns which message IDs were removed from or added to the query
+    /// result set since the given state. `max_changes` may be `None`.
+    pub async fn message_query_changes(
+        &self,
+        session: &crate::jmap::Session,
+        since_query_state: &str,
+        max_changes: Option<u64>,
+    ) -> Result<QueryChangesResponse, crate::error::ClientError> {
+        let (api_url, account_id) = Self::session_parts(session)?;
+        let mut args = serde_json::json!({
+            "accountId": account_id,
+            "sinceQueryState": since_query_state,
+        });
+        if let Some(mc) = max_changes {
+            args["maxChanges"] = mc.into();
+        }
+        let (call_id, req) = super::build_request("Message/queryChanges", args);
         let resp = self.call(api_url, &req).await?;
         crate::client::extract_response(resp, call_id)
     }

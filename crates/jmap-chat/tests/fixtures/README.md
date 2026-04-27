@@ -84,6 +84,9 @@ variant distinguishes cases (e.g., `chat_contact_no_presence` vs
 | `message_query_response.json` | `Message/query` response — ids list, canCalculateChanges |
 | `message_changes_response.json` | `Message/changes` response — one created id, empty updated/destroyed |
 | `message_create_response.json` | `Message/set` response (create path) — created map with server-assigned id |
+| `message_set_update_response.json` | `Message/set` response (update path) — updated map with message id |
+| `message_set_destroy_response.json` | `Message/set` response (destroy path) — destroyed list |
+| `message_query_changes_response.json` | `Message/queryChanges` response — one added item |
 | `chat_contact_get_response.json` | `ChatContact/get` response — list with one ChatContact |
 | `read_position_get_response.json` | `ReadPosition/get` response — list with one ReadPosition |
 | `read_position_set_response.json` | `ReadPosition/set` response — updated map |

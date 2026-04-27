@@ -133,6 +133,8 @@ pub struct MessageQueryInput<'a> {
     pub chat_id: Option<&'a str>,
     pub has_mention: Option<bool>,
     pub has_attachment: Option<bool>,
+    pub text: Option<&'a str>,
+    pub thread_root_id: Option<&'a str>,
     pub position: Option<u64>,
     pub limit: Option<u64>,
     /// Sort by `sentAt` ascending (oldest first) when `true`.
@@ -154,6 +156,51 @@ pub struct MessageCreateInput<'a> {
     /// RFC 3339 timestamp (e.g. from `chrono::Utc::now().to_rfc3339()`).
     pub sent_at: &'a crate::jmap::UTCDate,
     pub reply_to: Option<&'a str>,
+}
+
+/// A single reaction change in a Message/set patch (JMAP Chat §4.5).
+///
+/// The patch key is `reactions/<senderReactionId>` (JSON Pointer).
+/// `senderReactionId` is a caller-generated ID (e.g. ULID) that uniquely
+/// identifies this reaction slot for the sending user in this message.
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum ReactionChange<'a> {
+    /// Add a reaction. Patch value: `{emoji, sentAt}`.
+    Add {
+        sender_reaction_id: &'a str,
+        emoji: &'a str,
+        sent_at: &'a crate::jmap::UTCDate,
+    },
+    /// Remove a reaction. Patch value: null.
+    Remove { sender_reaction_id: &'a str },
+}
+
+/// Input parameters for [`JmapChatClient::message_set_update`].
+///
+/// All fields except `id` are optional; absent fields are not included in the
+/// patch (the server leaves them unchanged). For chat-level deletion, set
+/// `deleted_at` (soft-delete) and optionally `deleted_for_all: Some(true)`
+/// (hard-delete, propagated to all participants).
+#[derive(Debug)]
+pub struct MessageUpdateInput<'a> {
+    /// `Message.id` to update.
+    pub id: &'a str,
+    /// New message body text (author-only edit).
+    pub body: Option<&'a str>,
+    /// MIME type for `body` — `"text/plain"` or `"text/markdown"`.
+    pub body_type: Option<&'a str>,
+    /// Reaction changes to apply in this update. Pass `&[]` when only other
+    /// fields are being patched. Example: `reaction_changes: &changes[..]`
+    /// where `changes: Vec<ReactionChange<'_>>` is built by the caller.
+    pub reaction_changes: &'a [ReactionChange<'a>],
+    /// Set the read-receipt timestamp (`Message.readAt`).
+    pub read_at: Option<&'a crate::jmap::UTCDate>,
+    /// Set the deletion timestamp for soft/hard delete.
+    pub deleted_at: Option<&'a crate::jmap::UTCDate>,
+    /// When `Some(true)` and `deleted_at` is also set, deletes for all
+    /// participants (server sends `Peer/retract`).
+    pub deleted_for_all: Option<bool>,
 }
 
 /// Input parameters for [`JmapChatClient::presence_status_set`].

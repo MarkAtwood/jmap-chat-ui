@@ -1,0 +1,9 @@
+{
+  "methodResponses": [["Message/set", {
+    "accountId": "account1",
+    "oldState": "state-msg-001",
+    "newState": "state-msg-002",
+    "destroyed": ["01HV5Z6QKWJ7N3P8R2X4YTMD42"]
+  }, "r1"]],
+  "sessionState": "sess-abc"
+}

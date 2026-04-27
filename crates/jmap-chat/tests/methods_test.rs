@@ -9,8 +9,8 @@
 use jmap_chat::client::JmapChatClient;
 use jmap_chat::error::ClientError;
 use jmap_chat::methods::{
-    ChatQueryInput, GetResponse, MessageCreateInput, MessageQueryInput, PresenceStatusSetInput,
-    SpaceBanCreateInput, SpaceInviteCreateInput,
+    ChatQueryInput, GetResponse, MessageCreateInput, MessageQueryInput, MessageUpdateInput,
+    PresenceStatusSetInput, ReactionChange, SpaceBanCreateInput, SpaceInviteCreateInput,
 };
 use jmap_chat::types::OwnerPresence;
 use wiremock::matchers::{body_json, method};
@@ -1132,4 +1132,282 @@ async fn space_invite_set_returns_typed_response() {
 
     // Oracle: RFC 8620 §5.3 — created map is present
     assert!(result.created.is_some(), "created map must be present");
+}
+
+// ---------------------------------------------------------------------------
+// Test 30: message_set_update (body edit) — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.3 — Message/set update response shape: newState, updated map.
+/// Fixture hand-written from §5.3 /set response definition.
+///
+/// Body matcher: verifies that the update patch contains only the body field,
+/// not null fields for absent options, confirming conditional patch building.
+#[tokio::test]
+async fn message_set_update_body_edit_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Message/set", {
+                "accountId": "account1",
+                "update": {
+                    "01HV5Z6QKWJ7N3P8R2X4YTMD42": {
+                        "body": "Hello, edited!"
+                    }
+                }
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_set_update_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .message_set_update(
+            &test_session(&api_url),
+            &MessageUpdateInput {
+                id: "01HV5Z6QKWJ7N3P8R2X4YTMD42",
+                body: Some("Hello, edited!"),
+                body_type: None,
+                reaction_changes: &[],
+                read_at: None,
+                deleted_at: None,
+                deleted_for_all: None,
+            },
+        )
+        .await
+        .expect("message_set_update must succeed");
+
+    // Oracle: RFC 8620 §5.3 — newState is present, updated map contains the message ID
+    assert_eq!(result.new_state, "state-msg-002");
+    let updated = result.updated.expect("updated map must be present");
+    assert!(
+        updated.contains_key("01HV5Z6QKWJ7N3P8R2X4YTMD42"),
+        "updated map must contain the message id"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 31: message_set_update (add reaction) — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.3 / JMAP Chat §4.5 — reaction add uses JSON Pointer
+/// patch key `reactions/<senderReactionId>` with value `{emoji, sentAt}`.
+/// Fixture hand-written from §5.3 /set response definition.
+///
+/// Body matcher: verifies the reaction patch key format and emoji value.
+#[tokio::test]
+async fn message_set_update_add_reaction_sends_correct_patch() {
+    let server = MockServer::start().await;
+    let sent_at = jmap_chat::jmap::UTCDate::from_trusted("2024-01-02T12:00:00Z");
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Message/set", {
+                "accountId": "account1",
+                "update": {
+                    "01HV5Z6QKWJ7N3P8R2X4YTMD42": {
+                        "reactions/01HVREACTIONULID01": {
+                            "emoji": "\u{1F44D}",
+                            "sentAt": "2024-01-02T12:00:00Z"
+                        }
+                    }
+                }
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_set_update_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let reaction = ReactionChange::Add {
+        sender_reaction_id: "01HVREACTIONULID01",
+        emoji: "\u{1F44D}",
+        sent_at: &sent_at,
+    };
+    let result = client
+        .message_set_update(
+            &test_session(&api_url),
+            &MessageUpdateInput {
+                id: "01HV5Z6QKWJ7N3P8R2X4YTMD42",
+                body: None,
+                body_type: None,
+                reaction_changes: &[reaction],
+                read_at: None,
+                deleted_at: None,
+                deleted_for_all: None,
+            },
+        )
+        .await
+        .expect("message_set_update with reaction must succeed");
+
+    // Oracle: RFC 8620 §5.3 — newState is present
+    assert_eq!(result.new_state, "state-msg-002");
+}
+
+// ---------------------------------------------------------------------------
+// Test 32: message_set_destroy — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.3 — Message/set destroy response shape: newState, destroyed list.
+/// Fixture hand-written from §5.3 /set response definition.
+///
+/// Body matcher: verifies destroy list is sent (not create or update).
+#[tokio::test]
+async fn message_set_destroy_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Message/set", {
+                "accountId": "account1",
+                "destroy": ["01HV5Z6QKWJ7N3P8R2X4YTMD42"]
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_set_destroy_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .message_set_destroy(&test_session(&api_url), &["01HV5Z6QKWJ7N3P8R2X4YTMD42"])
+        .await
+        .expect("message_set_destroy must succeed");
+
+    // Oracle: RFC 8620 §5.3 — destroyed list contains the id
+    assert_eq!(result.new_state, "state-msg-002");
+    let destroyed = result.destroyed.expect("destroyed list must be present");
+    assert_eq!(destroyed, vec!["01HV5Z6QKWJ7N3P8R2X4YTMD42"]);
+}
+
+// ---------------------------------------------------------------------------
+// Test 33: message_set_destroy — empty ids guard
+// ---------------------------------------------------------------------------
+
+/// Oracle: message_set_destroy must reject an empty ids slice before any
+/// network call (same pattern as message_get empty ids guard).
+#[tokio::test]
+async fn message_set_destroy_rejects_empty_ids() {
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, "http://127.0.0.1:1")
+        .expect("client construction must succeed");
+
+    let err = client
+        .message_set_destroy(&test_session("http://127.0.0.1:1/api"), &[])
+        .await
+        .expect_err("empty ids must be rejected");
+
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("ids")),
+        "expected InvalidArgument mentioning 'ids', got {err:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 34: message_query_changes — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.6 — Message/queryChanges response shape: added items.
+/// Fixture hand-written from §5.6 /queryChanges response definition.
+#[tokio::test]
+async fn message_query_changes_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("message_query_changes_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .message_query_changes(&test_session(&api_url), "msg-qs-000", None)
+        .await
+        .expect("message_query_changes must succeed");
+
+    // Oracle: RFC 8620 §5.6 — added contains the newly visible message
+    assert_eq!(result.added.len(), 1);
+    assert_eq!(result.added[0].id, "01HV5Z6QKWJ7N3P8R2X4YTMDCC");
+    assert_eq!(result.added[0].index, 0);
+    assert_eq!(result.old_query_state, "msg-qs-000");
+}
+
+// ---------------------------------------------------------------------------
+// Test 35: message_query with text filter — sends correct body
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.5 / JMAP Chat §4.5 — Message/query with text filter
+/// sends the text field in the filter object. Servers that do not support
+/// full-text search return unsupportedFilter; the client sends the field
+/// unconditionally when provided.
+///
+/// Body matcher: verifies both chatId and text appear in the filter, and that
+/// position/limit are absent when not provided.
+#[tokio::test]
+async fn message_query_with_text_filter_sends_correct_body() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Message/query", {
+                "accountId": "account1",
+                "filter": {
+                    "chatId": "01HV5Z6QKWJ7N3P8R2X4YTMD3G",
+                    "text": "hello"
+                },
+                "sort": [{"property": "sentAt", "isAscending": false}]
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_query_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .message_query(
+            &test_session(&api_url),
+            &MessageQueryInput {
+                chat_id: Some("01HV5Z6QKWJ7N3P8R2X4YTMD3G"),
+                text: Some("hello"),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("message_query with text filter must succeed");
+
+    // Oracle: RFC 8620 §5.5 — ids is non-empty, queryState is present
+    assert!(!result.ids.is_empty(), "ids must have length > 0");
+    assert!(
+        !result.query_state.is_empty(),
+        "query_state must not be empty"
+    );
 }
