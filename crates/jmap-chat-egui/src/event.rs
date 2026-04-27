@@ -4,10 +4,11 @@ use jmap_chat::types::{Chat, ContactPresence, Message};
 ///
 /// ## ID representation
 /// All server-assigned IDs in this enum are `String`, not `jmap_chat::jmap::Id`.
-/// The egui event layer is a String boundary: the client task converts `Id` values
-/// to `String` at event construction so that `AppState` (which uses `String` for
-/// all ID-keyed collections) can operate without `jmap_chat` type dependencies on
-/// its internal data structures.
+/// The client task converts `Id` values to `String` at event construction.
+/// This keeps `AppState`'s `HashMap`-keyed collections (`typing_indicators`,
+/// `presence`) usable with `&str` lookups — `(String, String)` does not implement
+/// `Borrow<(Id, Id)>`, so using `Id` as map keys would require `.to_string()` at
+/// every `insert`/`remove` call site anyway.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum AppEvent {
