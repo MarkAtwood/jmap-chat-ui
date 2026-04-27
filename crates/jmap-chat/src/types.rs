@@ -1760,6 +1760,50 @@ mod tests {
         );
     }
 
+    /// Oracle: RFC 8030 §5.3 — all four known PushUrgency variants serialize to exact wire strings.
+    #[test]
+    fn push_urgency_serialize_known_variants() {
+        // Wire strings from RFC 8030 §5.3, hardcoded as the independent oracle.
+        assert_eq!(
+            serde_json::to_string(&PushUrgency::VeryLow).unwrap(),
+            "\"very-low\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PushUrgency::Low).unwrap(),
+            "\"low\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PushUrgency::Normal).unwrap(),
+            "\"normal\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PushUrgency::High).unwrap(),
+            "\"high\""
+        );
+    }
+
+    /// Oracle: RFC 8030 §5.3 — all four wire strings deserialize to the correct PushUrgency variants.
+    #[test]
+    fn push_urgency_deserialize_known_variants() {
+        // Wire strings from RFC 8030 §5.3, hardcoded as the independent oracle.
+        assert_eq!(
+            serde_json::from_str::<PushUrgency>("\"very-low\"").unwrap(),
+            PushUrgency::VeryLow
+        );
+        assert_eq!(
+            serde_json::from_str::<PushUrgency>("\"low\"").unwrap(),
+            PushUrgency::Low
+        );
+        assert_eq!(
+            serde_json::from_str::<PushUrgency>("\"normal\"").unwrap(),
+            PushUrgency::Normal
+        );
+        assert_eq!(
+            serde_json::from_str::<PushUrgency>("\"high\"").unwrap(),
+            PushUrgency::High
+        );
+    }
+
     /// Oracle: unknown ChatMemberRole wire value must deserialize to Unknown, not fail.
     #[test]
     fn test_chat_member_role_unknown_wire_value_becomes_unknown() {
