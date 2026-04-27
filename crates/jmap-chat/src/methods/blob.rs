@@ -71,3 +71,58 @@ impl crate::client::JmapChatClient {
         crate::client::extract_response(resp, super::CALL_ID)
     }
 }
+
+/// Response to a Blob/convert call (JMAP-BLOBEXT §7).
+#[non_exhaustive]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlobConvertResponse {
+    /// Account the conversion was run against.
+    pub account_id: String,
+    /// blobId of the converted output blob.
+    pub blob_id: String,
+    /// MIME type of the output blob.
+    #[serde(rename = "type")]
+    pub content_type: String,
+}
+
+impl crate::client::JmapChatClient {
+    /// Convert a blob to a different MIME type (JMAP-BLOBEXT §7 / blob2 capability).
+    ///
+    /// Typical use: request a thumbnail (`image/webp`) from an image blob without
+    /// downloading the original. The server MUST advertise
+    /// `urn:ietf:params:jmap:blob2` in Session capabilities.
+    ///
+    /// `width` and `height` are optional hint dimensions; the server may ignore
+    /// or clamp them. Pass `None` to omit both.
+    pub async fn blob_convert(
+        &self,
+        session: &crate::jmap::Session,
+        from_blob_id: &str,
+        content_type: &str,
+        width: Option<u32>,
+        height: Option<u32>,
+    ) -> Result<BlobConvertResponse, crate::error::ClientError> {
+        let (api_url, account_id) = Self::session_parts(session)?;
+        let mut args = serde_json::json!({
+            "accountId": account_id,
+            "fromBlobId": from_blob_id,
+            "type": content_type,
+        });
+        if let Some(w) = width {
+            args["width"] = w.into();
+        }
+        if let Some(h) = height {
+            args["height"] = h.into();
+        }
+        let req = crate::jmap::JmapRequest {
+            using: vec![
+                "urn:ietf:params:jmap:core".to_string(),
+                "urn:ietf:params:jmap:blob2".to_string(),
+            ],
+            method_calls: vec![("Blob/convert".to_string(), args, super::CALL_ID.to_string())],
+        };
+        let resp = self.call(api_url, &req).await?;
+        crate::client::extract_response(resp, super::CALL_ID)
+    }
+}

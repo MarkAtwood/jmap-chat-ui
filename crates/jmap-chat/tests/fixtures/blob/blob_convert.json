@@ -1,0 +1,8 @@
+{
+    "methodResponses": [["Blob/convert", {
+        "accountId": "account1",
+        "blobId": "converted-blob-webp-001",
+        "type": "image/webp"
+    }, "r1"]],
+    "sessionState": "sess-abc"
+}

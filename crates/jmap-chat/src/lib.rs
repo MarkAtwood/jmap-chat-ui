@@ -6,4 +6,5 @@ pub mod jmap;
 pub mod methods;
 pub mod sse;
 pub mod types;
+pub mod utils;
 pub mod ws;

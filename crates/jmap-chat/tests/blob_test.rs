@@ -279,3 +279,78 @@ async fn download_blob_with_type_substitution() {
 
     assert_eq!(data, b"fakepng");
 }
+
+// ---------------------------------------------------------------------------
+// Test: blob_convert — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP-BLOBEXT §7 — Blob/convert response: blobId and type present.
+/// Fixture hand-written from JMAP blob extension spec §7.
+#[tokio::test]
+async fn blob_convert_returns_typed_response() {
+    use jmap_chat::methods::blob::BlobConvertResponse;
+    use wiremock::matchers::body_json;
+
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:blob2"],
+            "methodCalls": [["Blob/convert", {
+                "accountId": "account1",
+                "fromBlobId": "original-blob-001",
+                "type": "image/webp",
+                "width": 200,
+                "height": 200
+            }, "r1"]]
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "methodResponses": [["Blob/convert", {
+                "accountId": "account1",
+                "blobId": "converted-blob-webp-001",
+                "type": "image/webp"
+            }, "r1"]],
+            "sessionState": "sess-abc"
+        })))
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+    // Build a minimal session with blob2 capability via serde to handle all fields.
+    let api_url = format!("{}/api", server.uri());
+    let session: jmap_chat::jmap::Session = serde_json::from_value(serde_json::json!({
+        "capabilities": { "urn:ietf:params:jmap:blob2": null },
+        "accounts": {
+            "account1": {
+                "name": "Test",
+                "isPersonal": true,
+                "isReadOnly": false,
+                "accountCapabilities": {}
+            }
+        },
+        "primaryAccounts": { "urn:ietf:params:jmap:chat": "account1" },
+        "username": "test@example.com",
+        "apiUrl": api_url,
+        "downloadUrl": "",
+        "uploadUrl": "",
+        "eventSourceUrl": "",
+        "state": "sess-abc"
+    }))
+    .expect("session must deserialize");
+
+    let result: BlobConvertResponse = client
+        .blob_convert(
+            &session,
+            "original-blob-001",
+            "image/webp",
+            Some(200),
+            Some(200),
+        )
+        .await
+        .expect("blob_convert must succeed");
+
+    assert_eq!(result.blob_id, "converted-blob-webp-001");
+    assert_eq!(result.content_type, "image/webp");
+    assert_eq!(result.account_id, "account1");
+}

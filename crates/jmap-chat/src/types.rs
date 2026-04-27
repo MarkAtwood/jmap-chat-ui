@@ -1192,6 +1192,37 @@ mod tests {
         assert!(msg.deleted_at.is_none());
     }
 
+    /// Oracle: spec §4.10 — body field MUST be a String, never an embedded object.
+    /// The valid fixture has body as a JSON-encoded string (escaped JSON).
+    #[test]
+    fn test_message_rich_body_valid_parses_as_string() {
+        let json = fixture("message_rich_body_valid.json");
+        let msg: Message = serde_json::from_str(&json).expect("valid rich body fixture must parse");
+        assert_eq!(msg.body_type, "application/jmap-chat-rich");
+        // body is a plain String — callers must call from_str to get RichBody
+        assert!(
+            msg.body.starts_with('{'),
+            "body string must start with JSON object char"
+        );
+        let rich: RichBody =
+            serde_json::from_str(&msg.body).expect("body string must contain valid RichBody JSON");
+        assert_eq!(rich.spans.len(), 2);
+        assert_eq!(rich.spans[0].span_type, SpanType::Text);
+        assert_eq!(rich.spans[1].span_type, SpanType::Bold);
+    }
+
+    /// Oracle: spec §4.10 — body as embedded JSON object must fail deserialization.
+    /// message_rich_body_invalid.json has body as a raw object, not a string.
+    #[test]
+    fn test_message_rich_body_invalid_fails_deserialization() {
+        let json = fixture("message_rich_body_invalid.json");
+        let result = serde_json::from_str::<Message>(&json);
+        assert!(
+            result.is_err(),
+            "message with embedded-object body must fail deserialization; body must be a String"
+        );
+    }
+
     /// Oracle: spec §4.9 — optional fields absent from JSON deserialize to None.
     #[test]
     fn test_chat_optional_fields_absent_become_none() {
@@ -1327,6 +1358,23 @@ mod tests {
         assert!(
             chat.receipt_sharing.is_none(),
             "absent receipt_sharing must be None"
+        );
+    }
+
+    /// Oracle: spec §Chat — both new fields explicit in fixture.
+    /// chat_with_typing_fields.json sets receiveTypingIndicators=false, receiptSharing=false.
+    #[test]
+    fn test_chat_with_typing_fields_explicit_values() {
+        let json = fixture("chat_with_typing_fields.json");
+        let chat: Chat = serde_json::from_str(&json).expect("must parse");
+        assert!(
+            !chat.receive_typing_indicators,
+            "receiveTypingIndicators must be false when set to false"
+        );
+        assert_eq!(
+            chat.receipt_sharing,
+            Some(false),
+            "receiptSharing must be Some(false) when set to false"
         );
     }
 
