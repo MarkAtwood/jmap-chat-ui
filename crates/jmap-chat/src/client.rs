@@ -37,6 +37,14 @@ impl JmapChatClient {
         })
     }
 
+    fn auth_failed_if(status: reqwest::StatusCode) -> Result<(), ClientError> {
+        if status == 401 || status == 403 {
+            Err(ClientError::AuthFailed(status.as_u16()))
+        } else {
+            Ok(())
+        }
+    }
+
     /// Fetch the JMAP Session object from `{base_url}/.well-known/jmap`.
     ///
     /// Returns `ClientError::AuthFailed` on HTTP 401 or 403 so the caller can
@@ -56,9 +64,7 @@ impl JmapChatClient {
         let resp = req.send().await.map_err(ClientError::Http)?;
 
         let status = resp.status();
-        if status == 401 || status == 403 {
-            return Err(ClientError::AuthFailed(status.as_u16()));
-        }
+        Self::auth_failed_if(status)?;
 
         let resp = resp.error_for_status().map_err(ClientError::Http)?;
 
@@ -100,9 +106,7 @@ impl JmapChatClient {
         let resp = builder.send().await.map_err(ClientError::Http)?;
 
         let status = resp.status();
-        if status == 401 || status == 403 {
-            return Err(ClientError::AuthFailed(status.as_u16()));
-        }
+        Self::auth_failed_if(status)?;
 
         let resp = resp.error_for_status().map_err(ClientError::Http)?;
 
@@ -154,9 +158,7 @@ impl JmapChatClient {
         let resp = req.send().await.map_err(ClientError::Http)?;
 
         let status = resp.status();
-        if status == 401 || status == 403 {
-            return Err(ClientError::AuthFailed(status.as_u16()));
-        }
+        Self::auth_failed_if(status)?;
 
         let resp = resp.error_for_status().map_err(ClientError::Http)?;
 
@@ -170,6 +172,9 @@ impl JmapChatClient {
                     // Search for any double-newline delimiter (LF/CRLF/CR variants).
                     // scan_from is set to old_len.saturating_sub(3) after each append
                     // so we only re-scan the overlap region rather than the whole buffer.
+                    // 3 bytes back covers the longest incomplete delimiter prefix that
+                    // can straddle the chunk boundary: `\r\n\r` (a 3-byte prefix of
+                    // `\r\n\r\n`).
                     // Find the earliest occurrence and record its byte length so we
                     // extract exactly the right number of bytes.
                     let frame_end = [

@@ -41,8 +41,11 @@ type EventSender = tokio::sync::mpsc::UnboundedSender<AppEvent>;
 enum SseNotification {
     /// A "state" event arrived; the inner map is accountId → (typeName → state).
     StateChange(HashMap<String, HashMap<String, String>>),
-    /// The SSE stream ended or hit an error; reconnect is needed.
-    StreamEnded,
+    /// Normal stream end (network close or error). Carries the last `id:` value
+    /// seen in the stream so the reconnect can send `Last-Event-ID` per RFC 8620 §7.3.
+    StreamEnded { last_event_id: Option<String> },
+    /// Permanent auth failure from `subscribe_events` — do not reconnect.
+    AuthFailed,
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +171,8 @@ pub async fn run(
 
     // Phase 2: Spawn SSE subtask.
     let (sse_tx, mut sse_rx) = tokio::sync::mpsc::unbounded_channel::<SseNotification>();
-    let mut sse_handle = spawn_sse_task(Arc::clone(&client), event_source_url.clone(), sse_tx);
+    let mut last_sse_event_id: Option<String> = None;
+    let mut sse_handle = spawn_sse_task(Arc::clone(&client), event_source_url.clone(), sse_tx, None);
 
     let mut sse_backoff_idx = 0usize;
 
@@ -186,6 +190,7 @@ pub async fn run(
                 &mut sse_backoff_idx,
                 Arc::clone(&client),
                 &event_source_url,
+                last_sse_event_id.clone(),
                 &tx,
                 &ctx,
             )
@@ -203,8 +208,25 @@ pub async fn run(
                         sse_needs_restart = true;
                         continue;
                     }
-                    Some(SseNotification::StreamEnded) => {
+                    Some(SseNotification::StreamEnded { last_event_id }) => {
+                        if last_event_id.is_some() {
+                            last_sse_event_id = last_event_id;
+                        }
                         sse_needs_restart = true;
+                        continue;
+                    }
+                    Some(SseNotification::AuthFailed) => {
+                        send_event(
+                            &tx,
+                            &ctx,
+                            AppEvent::Error("SSE authentication failed — check credentials".to_string()),
+                        );
+                        send_event(
+                            &tx,
+                            &ctx,
+                            AppEvent::StatusChanged(ConnectionStatus::Disconnected),
+                        );
+                        // Do not reconnect after auth failure.
                         continue;
                     }
                     Some(SseNotification::StateChange(changed)) => {
@@ -470,19 +492,32 @@ async fn load_chats(
     tx: &EventSender,
     ctx: &egui::Context,
 ) -> Result<String, ClientError> {
-    let query = client
-        .chat_query(
-            session,
-            &ChatQueryInput {
-                limit: Some(200),
-                ..Default::default()
-            },
-        )
-        .await?;
+    const PAGE: u64 = 200;
+    let mut all_ids: Vec<String> = Vec::new();
+    let mut position = 0u64;
+    loop {
+        let query = client
+            .chat_query(
+                session,
+                &ChatQueryInput {
+                    limit: Some(PAGE),
+                    position: Some(position),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        let fetched = query.ids.len() as u64;
+        let total = query.total;
+        all_ids.extend(query.ids);
+        position += fetched;
+        if fetched < PAGE || total.is_some_and(|t| position >= t) {
+            break;
+        }
+    }
 
     // Always call chat_get even when ids is empty, so we get the current state
     // string and can use Chat/changes for future delta sync.
-    let id_refs: Vec<&str> = query.ids.iter().map(String::as_str).collect();
+    let id_refs: Vec<&str> = all_ids.iter().map(String::as_str).collect();
     let resp = client.chat_get(session, Some(&id_refs), None).await?;
     let state = resp.state.clone();
     send_event(tx, ctx, AppEvent::ChatsLoaded(resp.list));
@@ -523,7 +558,7 @@ async fn load_messages_for_chat(
     // chronologically regardless of RFC 3339 offset format in sent_at.
     // messages.last() is then the most recent (required for auto-mark-read).
     // None (parse failure) sorts before Some, placing unparseable entries first.
-    messages.sort_by_key(|m| m.sent_at.parse().ok());
+    messages.sort_by_cached_key(|m| m.sent_at.parse().ok());
 
     // Capture the last message ID before moving `messages` into the event.
     let last_msg_id: Option<String> = messages.last().map(|m| m.id.to_string());
@@ -612,6 +647,7 @@ async fn reconnect_sse(
     backoff_idx: &mut usize,
     client: Arc<JmapChatClient>,
     event_source_url: &str,
+    last_event_id: Option<String>,
     tx: &EventSender,
     ctx: &egui::Context,
 ) -> (
@@ -632,7 +668,7 @@ async fn reconnect_sse(
     );
     tokio::time::sleep(Duration::from_secs(delay)).await;
     let (new_tx, new_rx) = tokio::sync::mpsc::unbounded_channel::<SseNotification>();
-    let new_handle = spawn_sse_task(client, event_source_url.to_string(), new_tx);
+    let new_handle = spawn_sse_task(client, event_source_url.to_string(), new_tx, last_event_id);
     (new_handle, new_rx)
 }
 
@@ -645,10 +681,11 @@ fn spawn_sse_task(
     client: Arc<JmapChatClient>,
     event_source_url: String,
     sse_tx: tokio::sync::mpsc::UnboundedSender<SseNotification>,
+    last_event_id: Option<String>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        run_sse_stream(client, &event_source_url, &sse_tx).await;
-        let _ = sse_tx.send(SseNotification::StreamEnded);
+        let last_event_id = run_sse_stream(client, &event_source_url, &sse_tx, last_event_id).await;
+        let _ = sse_tx.send(SseNotification::StreamEnded { last_event_id });
     })
 }
 
@@ -656,27 +693,41 @@ async fn run_sse_stream(
     client: Arc<JmapChatClient>,
     event_source_url: &str,
     sse_tx: &tokio::sync::mpsc::UnboundedSender<SseNotification>,
-) {
-    let stream = match client.subscribe_events(event_source_url, None).await {
+    last_event_id: Option<String>,
+) -> Option<String> {
+    let stream = match client
+        .subscribe_events(event_source_url, last_event_id.as_deref())
+        .await
+    {
         Ok(s) => s,
-        Err(_) => return,
+        Err(ClientError::AuthFailed(_)) => {
+            let _ = sse_tx.send(SseNotification::AuthFailed);
+            return last_event_id;
+        }
+        Err(_) => return last_event_id,
     };
+
+    let mut current_event_id = last_event_id;
 
     tokio::pin!(stream);
 
     while let Some(item) = stream.next().await {
         match item {
-            Err(_) => return,
+            Err(_) => return current_event_id,
             Ok(frame) => {
+                if let Some(id) = frame.id {
+                    current_event_id = Some(id);
+                }
                 if let SseEvent::StateChange { changed } = frame.event {
                     if sse_tx.send(SseNotification::StateChange(changed)).is_err() {
-                        return;
+                        return current_event_id;
                     }
                 }
-                // Unknown / Typing / Presence frames are silently ignored.
             }
         }
     }
+
+    current_event_id
 }
 
 // ---------------------------------------------------------------------------
@@ -710,6 +761,14 @@ async fn handle_state_change(
         }
 
         if type_map.contains_key("Message") {
+            // A new message also changes Chat.lastMessageAt. Sync chat metadata so the
+            // chat list stays current when the server sends only a Message StateChange.
+            if let Some(new_state) =
+                chat_delta_sync(Arc::clone(&client), session, chat_state.as_deref(), tx, ctx).await
+            {
+                *chat_state = Some(new_state);
+            }
+
             if let Some(chat_id) = current_chat {
                 if let Err(e) =
                     load_messages_for_chat(Arc::clone(&client), session, chat_id, tx, ctx)

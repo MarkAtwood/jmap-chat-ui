@@ -125,7 +125,7 @@ impl crate::client::JmapChatClient {
     ///
     /// Returns `Err(InvalidSession)` if the session has no primary account for
     /// `urn:ietf:params:jmap:chat`. All method wrappers call this as their first
-    /// step; currently mirrors: build_client, auth_header.
+    /// step.
     fn session_parts(
         session: &crate::jmap::Session,
     ) -> Result<(&str, &str), crate::error::ClientError> {
