@@ -1142,7 +1142,7 @@ async fn space_invite_set_returns_typed_response() {
 /// Body matcher: verifies that the update patch contains only the body field,
 /// not null fields for absent options, confirming conditional patch building.
 #[tokio::test]
-async fn message_set_update_body_edit_returns_typed_response() {
+async fn message_update_body_edit_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -1198,7 +1198,7 @@ async fn message_set_update_body_edit_returns_typed_response() {
 ///
 /// Body matcher: verifies the reaction patch key format and emoji value.
 #[tokio::test]
-async fn message_set_update_add_reaction_sends_correct_patch() {
+async fn message_update_add_reaction_sends_correct_patch() {
     let server = MockServer::start().await;
     let sent_at = jmap_chat::jmap::UTCDate::from_trusted("2024-01-02T12:00:00Z");
 
@@ -1257,7 +1257,7 @@ async fn message_set_update_add_reaction_sends_correct_patch() {
 ///
 /// Body matcher: verifies destroy list is sent (not create or update).
 #[tokio::test]
-async fn message_set_destroy_returns_typed_response() {
+async fn message_destroy_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -1296,7 +1296,7 @@ async fn message_set_destroy_returns_typed_response() {
 /// Oracle: message_set_destroy must reject an empty ids slice before any
 /// network call (same pattern as message_get empty ids guard).
 #[tokio::test]
-async fn message_set_destroy_rejects_empty_ids() {
+async fn message_destroy_rejects_empty_ids() {
     let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, "http://127.0.0.1:1")
         .expect("client construction must succeed");
 
@@ -1411,7 +1411,7 @@ async fn message_query_with_text_filter_sends_correct_body() {
 ///
 /// Body matcher: verifies kind:"direct" and contactId are present in the create object.
 #[tokio::test]
-async fn chat_create_direct_returns_typed_response() {
+async fn chat_create_direct_variant_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -1472,7 +1472,7 @@ async fn chat_create_direct_returns_typed_response() {
 /// Optional fields (description, avatarBlobId, messageExpirySeconds) are absent
 /// from the request body because they are None, confirming conditional serialization.
 #[tokio::test]
-async fn chat_create_group_returns_typed_response() {
+async fn chat_create_group_variant_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -1537,7 +1537,7 @@ async fn chat_create_group_returns_typed_response() {
 /// Body matcher: verifies that only the muted field appears in the patch
 /// (absent options are not serialized), confirming conditional patch building.
 #[tokio::test]
-async fn chat_set_update_muted_returns_typed_response() {
+async fn chat_update_muted_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -1692,7 +1692,7 @@ async fn chat_query_changes_returns_typed_response() {
 /// the serde_json::to_value(role) path in chat_set_update is exercised and
 /// produces the correct camelCase wire value ("admin", not "Admin").
 #[tokio::test]
-async fn chat_set_update_with_add_members_role_serializes_correctly() {
+async fn chat_update_with_add_members_role_serializes_correctly() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -2078,7 +2078,7 @@ async fn space_create_returns_typed_response() {
 ///
 /// Body matcher: verifies metadata-only patch (name key only).
 #[tokio::test]
-async fn space_set_update_returns_typed_response() {
+async fn space_update_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -2128,7 +2128,7 @@ async fn space_set_update_returns_typed_response() {
 ///
 /// Body matcher: verifies the destroy key is present with the correct id array.
 #[tokio::test]
-async fn space_set_destroy_returns_typed_response() {
+async fn space_destroy_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -2456,7 +2456,7 @@ async fn blob_lookup_returns_typed_response() {
 /// Oracle: JMAP Chat §4.5 — readAt patch sets the read timestamp on a Message.
 /// Body matcher: verifies readAt is present in the update patch with full-precision value.
 #[tokio::test]
-async fn message_set_update_read_at_sends_correct_patch() {
+async fn message_update_read_at_sends_correct_patch() {
     let server = MockServer::start().await;
     let read_at = jmap_chat::jmap::UTCDate::from_trusted("2024-01-01T10:05:00Z");
 
@@ -2592,7 +2592,7 @@ async fn message_create_rate_limited_returns_error() {
 /// Oracle: RFC 8620 §5.3 — Chat/set destroy response: destroyed list contains the ID.
 /// Fixture hand-written from §5.3 /set response definition.
 #[tokio::test]
-async fn chat_set_destroy_returns_typed_response() {
+async fn chat_destroy_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -2631,7 +2631,7 @@ async fn chat_set_destroy_returns_typed_response() {
 /// Oracle: JMAP Chat §Chat/set create/channel — server assigns an ID in the created map.
 /// Body matcher: verifies kind, spaceId, name are sent.
 #[tokio::test]
-async fn chat_create_channel_returns_typed_response() {
+async fn chat_create_channel_variant_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))

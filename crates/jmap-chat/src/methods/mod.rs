@@ -391,6 +391,7 @@ pub struct SpaceQueryInput<'a> {
 ///
 /// The enum makes invalid inputs unrepresentable: exactly one path is always
 /// selected at construction time, so the runtime guard is not needed.
+#[non_exhaustive]
 #[derive(Debug)]
 pub enum SpaceJoinInput<'a> {
     /// Redeem a SpaceInvite by its `code` field (not its `id`).
@@ -430,6 +431,7 @@ pub struct UpdateMemberRoleInput<'a> {
 /// Discriminates the three Chat creation kinds from the spec. Each variant
 /// carries the fields required for that kind plus an optional `client_id`;
 /// when `None`, a ULID is generated automatically.
+#[non_exhaustive]
 #[derive(Debug)]
 pub enum ChatCreateInput<'a> {
     /// Create a direct (one-to-one) chat.
