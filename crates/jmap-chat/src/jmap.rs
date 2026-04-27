@@ -179,8 +179,49 @@ impl PartialEq<UTCDate> for &str {
     }
 }
 
-/// A single method call or response: `[methodName, arguments, callId]` (RFC 8620 §3.2).
-pub type Invocation = (String, serde_json::Value, String);
+/// A single JMAP method call or response: `[methodName, arguments, callId]` (RFC 8620 §3.2).
+///
+/// Serializes and deserializes as a 3-element JSON array to match the JMAP wire format.
+#[derive(Debug, Clone)]
+pub struct Invocation {
+    pub method: String,
+    pub args: serde_json::Value,
+    pub call_id: String,
+}
+
+impl Invocation {
+    /// Create a new `Invocation`.
+    pub fn new(
+        method: impl Into<String>,
+        args: serde_json::Value,
+        call_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            method: method.into(),
+            args,
+            call_id: call_id.into(),
+        }
+    }
+}
+
+impl serde::Serialize for Invocation {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeTuple;
+        let mut tup = s.serialize_tuple(3)?;
+        tup.serialize_element(&self.method)?;
+        tup.serialize_element(&self.args)?;
+        tup.serialize_element(&self.call_id)?;
+        tup.end()
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Invocation {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let (method, args, call_id) =
+            <(String, serde_json::Value, String)>::deserialize(d)?;
+        Ok(Self { method, args, call_id })
+    }
+}
 
 /// JMAP API request (RFC 8620 §3.3).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -250,7 +291,7 @@ impl JmapRequestBuilder {
         call_id: impl Into<String>,
     ) -> Self {
         self.method_calls
-            .push((method.into(), args, call_id.into()));
+            .push(Invocation::new(method, args, call_id));
         self
     }
 
@@ -585,8 +626,8 @@ mod tests {
         let req: JmapRequest = serde_json::from_value(val).expect("deserialize JmapRequest");
 
         assert_eq!(req.using[0], "urn:ietf:params:jmap:core");
-        assert_eq!(req.method_calls[0].0, "Chat/get");
-        assert_eq!(req.method_calls[0].2, "r1");
+        assert_eq!(req.method_calls[0].method, "Chat/get");
+        assert_eq!(req.method_calls[0].call_id, "r1");
     }
 
     // Oracle: RFC 8620 §3.3 — serialize matches hand-written fixture exactly
@@ -598,15 +639,15 @@ mod tests {
                 "urn:ietf:params:jmap:chat".to_string(),
             ],
             method_calls: vec![
-                (
-                    "Chat/get".to_string(),
+                Invocation::new(
+                    "Chat/get",
                     json!({"accountId": "account1", "ids": null}),
-                    "r1".to_string(),
+                    "r1",
                 ),
-                (
-                    "Message/get".to_string(),
+                Invocation::new(
+                    "Message/get",
                     json!({"accountId": "account1", "ids": ["msg1", "msg2"]}),
-                    "r2".to_string(),
+                    "r2",
                 ),
             ],
         };
@@ -623,14 +664,14 @@ mod tests {
         let resp: JmapResponse = serde_json::from_value(val).expect("deserialize JmapResponse");
 
         assert_eq!(resp.session_state, "session-xyz789");
-        assert_eq!(resp.method_responses[0].0, "Chat/get");
+        assert_eq!(resp.method_responses[0].method, "Chat/get");
         assert!(resp.created_ids.is_none());
     }
 
     // Oracle: RFC 8620 §3.2 — Invocation is a 3-element JSON array
     #[test]
     fn invocation_serializes_as_array() {
-        let inv: Invocation = ("Foo/get".to_string(), json!({}), "c1".to_string());
+        let inv = Invocation::new("Foo/get", json!({}), "c1");
         let val = serde_json::to_value(&inv).expect("serialize Invocation");
         assert_eq!(val, json!(["Foo/get", {}, "c1"]));
     }
@@ -913,10 +954,10 @@ mod tests {
 
         assert_eq!(req.using.len(), 2);
         assert_eq!(req.method_calls.len(), 2);
-        assert_eq!(req.method_calls[0].0, "Chat/get");
-        assert_eq!(req.method_calls[0].2, "r1");
-        assert_eq!(req.method_calls[1].0, "Message/query");
-        assert_eq!(req.method_calls[1].2, "r2");
+        assert_eq!(req.method_calls[0].method, "Chat/get");
+        assert_eq!(req.method_calls[0].call_id, "r1");
+        assert_eq!(req.method_calls[1].method, "Message/query");
+        assert_eq!(req.method_calls[1].call_id, "r2");
     }
 
     /// Oracle: RFC 8620 §3.3 — builder serializes to the hand-written batch_request.json fixture.
@@ -971,7 +1012,7 @@ mod tests {
             .contains(&"urn:ietf:params:jmap:refplus".to_string()));
         assert_eq!(req.method_calls.len(), 2);
         // The second call's args must contain the "#chatId" result reference key.
-        let second_args = &req.method_calls[1].1;
+        let second_args = &req.method_calls[1].args;
         assert!(
             second_args.get("#chatId").is_some(),
             "must have #chatId key"

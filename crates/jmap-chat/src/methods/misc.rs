@@ -204,7 +204,7 @@ impl super::SessionClient<'_> {
         }
         let req = crate::jmap::JmapRequest {
             using,
-            method_calls: vec![("PushSubscription/set".to_string(), args, "r1".to_string())],
+            method_calls: vec![crate::jmap::Invocation::new("PushSubscription/set", args, "r1")],
         };
         let resp = self.call(api_url, &req).await?;
         crate::client::extract_response(resp, "r1")

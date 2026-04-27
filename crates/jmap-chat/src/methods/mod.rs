@@ -710,7 +710,7 @@ fn build_request(
     }
     let req = crate::jmap::JmapRequest {
         using,
-        method_calls: vec![(method_name.to_string(), args, CALL_ID.to_string())],
+        method_calls: vec![crate::jmap::Invocation::new(method_name, args, CALL_ID)],
     };
     (CALL_ID, req)
 }

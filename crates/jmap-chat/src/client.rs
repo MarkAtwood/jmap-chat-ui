@@ -159,10 +159,11 @@ impl JmapChatClient {
     ) -> Result<std::collections::HashMap<String, serde_json::Value>, ClientError> {
         let resp = self.call(api_url, req).await?;
         let mut map = std::collections::HashMap::with_capacity(resp.method_responses.len());
-        for (_method, args, call_id) in resp.method_responses {
-            if map.insert(call_id.clone(), args).is_some() {
+        for inv in resp.method_responses {
+            if map.insert(inv.call_id.clone(), inv.args).is_some() {
                 return Err(ClientError::Parse(format!(
-                    "server returned duplicate call id {call_id:?} in batch response"
+                    "server returned duplicate call id {:?} in batch response",
+                    inv.call_id
                 )));
             }
         }
@@ -312,19 +313,19 @@ pub(crate) fn extract_response<T: serde::de::DeserializeOwned>(
     resp: JmapResponse,
     call_id: &str,
 ) -> Result<T, ClientError> {
-    let (method_name, args, _call_id_found) = resp
+    let inv = resp
         .method_responses
         .into_iter()
-        .find(|(_, _, id)| id == call_id)
+        .find(|inv| inv.call_id == call_id)
         .ok_or_else(|| ClientError::MethodNotFound(call_id.to_string()))?;
 
-    if method_name == "error" {
-        let err_type = args
+    if inv.method == "error" {
+        let err_type = inv.args
             .get("type")
             .and_then(|v| v.as_str())
             .unwrap_or("serverError")
             .to_string();
-        let description = args
+        let description = inv.args
             .get("description")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
@@ -335,7 +336,7 @@ pub(crate) fn extract_response<T: serde::de::DeserializeOwned>(
         });
     }
 
-    serde_json::from_value(args).map_err(|e| ClientError::Parse(e.to_string()))
+    serde_json::from_value(inv.args).map_err(|e| ClientError::Parse(e.to_string()))
 }
 
 #[cfg(test)]
@@ -573,10 +574,10 @@ mod tests {
                 "urn:ietf:params:jmap:core".to_string(),
                 "urn:ietf:params:jmap:chat".to_string(),
             ],
-            method_calls: vec![(
-                "Chat/get".to_string(),
+            method_calls: vec![crate::jmap::Invocation::new(
+                "Chat/get",
                 serde_json::json!({"accountId": "account1", "ids": null}),
-                "r1".to_string(),
+                "r1",
             )],
         }
     }
@@ -602,7 +603,7 @@ mod tests {
             .await
             .expect("call must succeed");
 
-        assert_eq!(resp.method_responses[0].0, "Chat/get");
+        assert_eq!(resp.method_responses[0].method, "Chat/get");
         assert_eq!(resp.session_state, "sess1");
     }
 
@@ -715,10 +716,10 @@ mod tests {
     #[test]
     fn extract_response_success() {
         let resp = crate::jmap::JmapResponse {
-            method_responses: vec![(
-                "Chat/get".to_string(),
+            method_responses: vec![crate::jmap::Invocation::new(
+                "Chat/get",
                 serde_json::json!({"accountId": "account1", "state": "s1", "list": [], "notFound": []}),
-                "r1".to_string(),
+                "r1",
             )],
             session_state: "sess1".to_string(),
             created_ids: None,
@@ -733,10 +734,10 @@ mod tests {
     #[test]
     fn extract_response_method_not_found() {
         let resp = crate::jmap::JmapResponse {
-            method_responses: vec![(
-                "Chat/get".to_string(),
+            method_responses: vec![crate::jmap::Invocation::new(
+                "Chat/get",
                 serde_json::json!({}),
-                "r1".to_string(),
+                "r1",
             )],
             session_state: "sess1".to_string(),
             created_ids: None,
@@ -819,10 +820,10 @@ mod tests {
     #[test]
     fn extract_response_method_error() {
         let resp = crate::jmap::JmapResponse {
-            method_responses: vec![(
-                "error".to_string(),
+            method_responses: vec![crate::jmap::Invocation::new(
+                "error",
                 serde_json::json!({"type": "serverFail", "description": "oops"}),
-                "r1".to_string(),
+                "r1",
             )],
             session_state: "sess1".to_string(),
             created_ids: None,
