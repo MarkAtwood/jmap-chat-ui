@@ -824,6 +824,22 @@ mod tests {
         assert!(result.is_ok(), "valid base_url must be accepted");
     }
 
+    /// Oracle: base_url validation — an IP:port URL (as documented in the constructor) must be accepted.
+    #[test]
+    fn new_accepts_ip_port_base_url() {
+        let result = JmapChatClient::new(crate::auth::NoneAuth, "https://100.64.1.1:8008")
+            .map(|_| ());
+        assert!(result.is_ok(), "IP:port base_url must be accepted: {result:?}");
+    }
+
+    /// Oracle: base_url validation — an IPv6 literal URL must be accepted.
+    #[test]
+    fn new_accepts_ipv6_base_url() {
+        let result = JmapChatClient::new(crate::auth::NoneAuth, "https://[::1]:8008")
+            .map(|_| ());
+        assert!(result.is_ok(), "IPv6 base_url must be accepted: {result:?}");
+    }
+
     /// Oracle: base_url validation — a URL with a query string must be rejected.
     #[test]
     fn new_rejects_base_url_with_query() {

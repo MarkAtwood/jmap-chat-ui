@@ -198,25 +198,12 @@ impl super::SessionClient<'_> {
             "create": { client_id: create_obj }
         });
         // RFC 8620 §3.3: only declare the chatPush capability when it is actually used.
-        let (call_id, req) = if has_chat_push {
-            let using: Vec<String> = super::USING_CORE
-                .iter()
-                .copied()
-                .chain(std::iter::once("urn:ietf:params:jmap:chat:push"))
-                .map(str::to_string)
-                .collect();
-            let req = crate::jmap::JmapRequest {
-                using,
-                method_calls: vec![crate::jmap::Invocation::new(
-                    "PushSubscription/set",
-                    args,
-                    super::CALL_ID,
-                )],
-            };
-            (super::CALL_ID, req)
+        let using = if has_chat_push {
+            super::USING_CHAT_PUSH
         } else {
-            super::build_request("PushSubscription/set", args, super::USING_CORE)
+            super::USING_CORE
         };
+        let (call_id, req) = super::build_request("PushSubscription/set", args, using);
         let resp = self.call(api_url, &req).await?;
         crate::client::extract_response(resp, call_id)
     }

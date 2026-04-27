@@ -705,6 +705,12 @@ pub(super) const USING_CORE: &[&str] = &[
     "urn:ietf:params:jmap:core",
 ];
 
+/// Capability URIs for PushSubscription/set with chat push extension.
+pub(super) const USING_CHAT_PUSH: &[&str] = &[
+    "urn:ietf:params:jmap:core",
+    "urn:ietf:params:jmap:chat:push",
+];
+
 /// Build a single-method JMAP request.
 ///
 /// `using` is the complete `using` array for the request (RFC 8620 §3.3).
