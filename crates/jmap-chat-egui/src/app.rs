@@ -109,7 +109,7 @@ impl AppState {
                 destroyed,
             } => {
                 let destroyed_set: std::collections::HashSet<&str> =
-                    destroyed.iter().map(String::as_str).collect();
+                    destroyed.iter().map(|id| id.as_str()).collect();
                 self.chats
                     .retain(|c| !destroyed_set.contains(c.id.as_str()));
                 for chat in created_or_updated {

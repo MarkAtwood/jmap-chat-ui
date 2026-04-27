@@ -78,9 +78,11 @@ pub struct SetResponse<T = serde_json::Value> {
     pub account_id: Id,
     pub old_state: Option<String>,
     pub new_state: String,
+    /// Keys are caller-supplied creation keys (not server Ids); see RFC 8620 §5.3.
     pub created: Option<HashMap<String, T>>,
     pub updated: Option<HashMap<String, T>>,
     pub destroyed: Option<Vec<Id>>,
+    /// Keys are caller-supplied creation keys (not server Ids); see RFC 8620 §5.3.
     pub not_created: Option<HashMap<String, SetError>>,
     pub not_updated: Option<HashMap<String, SetError>>,
     pub not_destroyed: Option<HashMap<String, SetError>>,
@@ -372,7 +374,7 @@ pub struct ChatContactQueryInput {
     pub filter_presence: Option<crate::types::OwnerPresence>,
     pub position: Option<u64>,
     pub limit: Option<u64>,
-    /// Sort property: one of `ContactSortProperty::LastSeenAt`, `Login`, `LastActiveAt`.
+    /// Sort property: [`ContactSortProperty::LastSeenAt`], [`ContactSortProperty::Login`], or [`ContactSortProperty::LastActiveAt`].
     pub sort_property: Option<ContactSortProperty>,
     /// When `Some(false)` or `None`, sort descending. `Some(true)` sorts ascending.
     pub sort_ascending: Option<bool>,

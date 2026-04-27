@@ -14,7 +14,7 @@ pub enum AppEvent {
     /// inserting or replacing each chat in `created_or_updated` (match on `id`).
     ChatsDelta {
         created_or_updated: Vec<Chat>,
-        destroyed: Vec<String>,
+        destroyed: Vec<jmap_chat::jmap::Id>,
     },
     /// Messages loaded for the specified chat.
     MessagesLoaded {

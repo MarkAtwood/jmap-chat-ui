@@ -82,6 +82,11 @@ impl super::SessionClient<'_> {
             filter.insert("blocked".into(), b.into());
         }
         if let Some(p) = &input.filter_presence {
+            if *p == crate::types::OwnerPresence::Unknown {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "filter_presence: OwnerPresence::Unknown is not a valid filter value".into(),
+                ));
+            }
             filter.insert("presence".into(), serde_json::to_value(p)?);
         }
         let filter_val = if filter.is_empty() {
