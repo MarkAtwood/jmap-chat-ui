@@ -229,8 +229,9 @@ pub struct MessageCreateInput<'a> {
     pub client_id: Option<&'a str>,
     pub chat_id: &'a str,
     pub body: &'a str,
-    /// MIME type for the message body. Use [`crate::types::BodyType::Plain`]
-    /// or [`crate::types::BodyType::Markdown`]; `Unknown(s)` passes `s` as-is.
+    /// MIME type for the message body. Use [`crate::types::BodyType::Plain`],
+    /// [`crate::types::BodyType::Markdown`], or [`crate::types::BodyType::Rich`]
+    /// for spec-defined types; `Unknown(s)` passes `s` as-is.
     pub body_type: crate::types::BodyType,
     /// RFC 3339 timestamp (e.g. from `chrono::Utc::now().to_rfc3339()`).
     pub sent_at: &'a crate::jmap::UTCDate,

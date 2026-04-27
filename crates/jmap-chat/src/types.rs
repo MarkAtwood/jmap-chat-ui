@@ -535,14 +535,21 @@ pub enum BodyType {
     Unknown(String),
 }
 
+impl BodyType {
+    /// The canonical MIME type string for this body type.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Plain => "text/plain",
+            Self::Markdown => "text/markdown",
+            Self::Rich => "application/jmap-chat-rich",
+            Self::Unknown(s) => s.as_str(),
+        }
+    }
+}
+
 impl serde::Serialize for BodyType {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match self {
-            BodyType::Plain => s.serialize_str("text/plain"),
-            BodyType::Markdown => s.serialize_str("text/markdown"),
-            BodyType::Rich => s.serialize_str("application/jmap-chat-rich"),
-            BodyType::Unknown(v) => s.serialize_str(v),
-        }
+        s.serialize_str(self.as_str())
     }
 }
 
@@ -560,12 +567,7 @@ impl<'de> serde::Deserialize<'de> for BodyType {
 
 impl std::fmt::Display for BodyType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BodyType::Plain => f.write_str("text/plain"),
-            BodyType::Markdown => f.write_str("text/markdown"),
-            BodyType::Rich => f.write_str("application/jmap-chat-rich"),
-            BodyType::Unknown(v) => f.write_str(v),
-        }
+        f.write_str(self.as_str())
     }
 }
 
@@ -1796,6 +1798,71 @@ mod tests {
         assert!(
             ps.receipt_sharing,
             "absent receiptSharing must default to true"
+        );
+    }
+
+    /// Oracle: spec §4.5 — BodyType wire string round-trip for all known variants.
+    #[test]
+    fn body_type_serialize_all_variants() {
+        assert_eq!(
+            serde_json::to_string(&BodyType::Plain).unwrap(),
+            "\"text/plain\""
+        );
+        assert_eq!(
+            serde_json::to_string(&BodyType::Markdown).unwrap(),
+            "\"text/markdown\""
+        );
+        assert_eq!(
+            serde_json::to_string(&BodyType::Rich).unwrap(),
+            "\"application/jmap-chat-rich\""
+        );
+        let u = BodyType::Unknown("application/x-custom".to_string());
+        assert_eq!(
+            serde_json::to_string(&u).unwrap(),
+            "\"application/x-custom\""
+        );
+    }
+
+    /// Oracle: spec §4.5 — BodyType deserializes from wire strings.
+    #[test]
+    fn body_type_deserialize_all_variants() {
+        assert_eq!(
+            serde_json::from_str::<BodyType>("\"text/plain\"").unwrap(),
+            BodyType::Plain
+        );
+        assert_eq!(
+            serde_json::from_str::<BodyType>("\"text/markdown\"").unwrap(),
+            BodyType::Markdown
+        );
+        assert_eq!(
+            serde_json::from_str::<BodyType>("\"application/jmap-chat-rich\"").unwrap(),
+            BodyType::Rich
+        );
+        let u = serde_json::from_str::<BodyType>("\"application/x-custom\"").unwrap();
+        assert_eq!(u, BodyType::Unknown("application/x-custom".to_string()));
+    }
+
+    /// Oracle: Display must return the wire string (same as Serialize but without quotes).
+    #[test]
+    fn body_type_display_all_variants() {
+        assert_eq!(BodyType::Plain.to_string(), "text/plain");
+        assert_eq!(BodyType::Markdown.to_string(), "text/markdown");
+        assert_eq!(BodyType::Rich.to_string(), "application/jmap-chat-rich");
+        assert_eq!(
+            BodyType::Unknown("application/x-custom".to_string()).to_string(),
+            "application/x-custom"
+        );
+    }
+
+    /// Oracle: as_str must return the MIME string without allocating.
+    #[test]
+    fn body_type_as_str_all_variants() {
+        assert_eq!(BodyType::Plain.as_str(), "text/plain");
+        assert_eq!(BodyType::Markdown.as_str(), "text/markdown");
+        assert_eq!(BodyType::Rich.as_str(), "application/jmap-chat-rich");
+        assert_eq!(
+            BodyType::Unknown("application/x-custom".to_string()).as_str(),
+            "application/x-custom"
         );
     }
 }
