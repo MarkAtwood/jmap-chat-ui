@@ -119,6 +119,9 @@ pub struct MessageCreateInput<'a> {
     pub client_id: &'a str,
     pub chat_id: &'a str,
     pub body: &'a str,
+    /// MIME type for the message body. Spec-defined values: `"text/plain"`,
+    /// `"text/markdown"`. An unrecognized value will produce a server
+    /// `MethodError`; no client-side validation is performed.
     pub body_type: &'a str,
     /// RFC 3339 timestamp (e.g. from `chrono::Utc::now().to_rfc3339()`).
     pub sent_at: &'a crate::jmap::UTCDate,

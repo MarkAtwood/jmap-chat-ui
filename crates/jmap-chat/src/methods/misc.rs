@@ -57,7 +57,7 @@ impl crate::client::JmapChatClient {
         let (api_url, account_id) = Self::session_parts(session)?;
         let args = serde_json::json!({
             "accountId": account_id,
-            "ids": serde_json::Value::Null,
+            "ids": None::<&[&str]>,
         });
         let (call_id, req) = super::build_request("PresenceStatus/get", args);
         let resp = self.call(api_url, &req).await?;

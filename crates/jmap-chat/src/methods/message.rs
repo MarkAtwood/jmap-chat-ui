@@ -41,17 +41,19 @@ impl crate::client::JmapChatClient {
         session: &crate::jmap::Session,
         input: &MessageQueryInput<'_>,
     ) -> Result<QueryResponse, crate::error::ClientError> {
-        if input.chat_id.is_none() && input.has_mention != Some(true) {
-            return Err(crate::error::ClientError::InvalidArgument(
-                "message_query: chat_id or has_mention=true must be provided".into(),
-            ));
-        }
-        if let Some(id) = input.chat_id {
-            if id.is_empty() {
+        match (input.chat_id, input.has_mention) {
+            (None, Some(true)) => {} // has_mention=true: no chat_id required
+            (None, _) => {
                 return Err(crate::error::ClientError::InvalidArgument(
-                    "chat_id must not be empty".to_string(),
-                ));
+                    "message_query: chat_id or has_mention=true must be provided".into(),
+                ))
             }
+            (Some(""), _) => {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "chat_id must not be empty".into(),
+                ))
+            }
+            (Some(_), _) => {} // chat_id present and non-empty
         }
         let (api_url, account_id) = Self::session_parts(session)?;
         let mut filter = serde_json::Map::new();
