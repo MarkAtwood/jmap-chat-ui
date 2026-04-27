@@ -80,11 +80,14 @@ pub struct SetResponse<T = serde_json::Value> {
     pub new_state: String,
     /// Keys are caller-supplied creation keys (not server Ids); see RFC 8620 §5.3.
     pub created: Option<HashMap<String, T>>,
+    /// Keys are server-assigned object Ids; see RFC 8620 §5.3.
     pub updated: Option<HashMap<String, T>>,
     pub destroyed: Option<Vec<Id>>,
     /// Keys are caller-supplied creation keys (not server Ids); see RFC 8620 §5.3.
     pub not_created: Option<HashMap<String, SetError>>,
+    /// Keys are server-assigned object Ids; see RFC 8620 §5.3.
     pub not_updated: Option<HashMap<String, SetError>>,
+    /// Keys are server-assigned object Ids; see RFC 8620 §5.3.
     pub not_destroyed: Option<HashMap<String, SetError>>,
 }
 
@@ -371,6 +374,10 @@ pub enum ContactSortProperty {
 pub struct ChatContactQueryInput {
     pub filter_blocked: Option<bool>,
     /// Filter to contacts with this exact presence state.
+    ///
+    /// Passing `Some(OwnerPresence::Unknown)` is rejected at call time with
+    /// `ClientError::InvalidArgument` — `Unknown` is a deserialization catch-all
+    /// and has no meaning as a filter value.
     pub filter_presence: Option<crate::types::OwnerPresence>,
     pub position: Option<u64>,
     pub limit: Option<u64>,

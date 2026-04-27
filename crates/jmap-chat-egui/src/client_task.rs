@@ -1027,7 +1027,11 @@ async fn chat_delta_sync(
             ctx,
             AppEvent::ChatsDelta {
                 created_or_updated: updated_chats,
-                destroyed: changes.destroyed,
+                destroyed: changes
+                    .destroyed
+                    .into_iter()
+                    .map(|id| id.to_string())
+                    .collect(),
             },
         );
     }

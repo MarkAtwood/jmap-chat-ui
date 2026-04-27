@@ -1,6 +1,13 @@
 use jmap_chat::types::{Chat, ContactPresence, Message};
 
 /// Events sent from the background client task to the egui UI.
+///
+/// ## ID representation
+/// All server-assigned IDs in this enum are `String`, not `jmap_chat::jmap::Id`.
+/// The egui event layer is a String boundary: the client task converts `Id` values
+/// to `String` at event construction so that `AppState` (which uses `String` for
+/// all ID-keyed collections) can operate without `jmap_chat` type dependencies on
+/// its internal data structures.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum AppEvent {
@@ -14,7 +21,7 @@ pub enum AppEvent {
     /// inserting or replacing each chat in `created_or_updated` (match on `id`).
     ChatsDelta {
         created_or_updated: Vec<Chat>,
-        destroyed: Vec<jmap_chat::jmap::Id>,
+        destroyed: Vec<String>,
     },
     /// Messages loaded for the specified chat.
     MessagesLoaded {
