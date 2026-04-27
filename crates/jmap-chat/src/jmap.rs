@@ -831,7 +831,10 @@ mod tests {
         assert_eq!(push.max_snippet_bytes, 256);
         assert_eq!(
             push.supported_urgency_values,
-            vec![crate::types::PushUrgency::Normal, crate::types::PushUrgency::High]
+            vec![
+                crate::types::PushUrgency::Normal,
+                crate::types::PushUrgency::High
+            ]
         );
         assert_eq!(push.max_messages_per_push, Some(10));
     }

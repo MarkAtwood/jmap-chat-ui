@@ -29,4 +29,4 @@ pub use jmap::{Id, Session, UTCDate};
 
 // Commonly-used enum types
 #[doc(inline)]
-pub use types::{ChatStreamDataType, PushUrgency, QuotaScope};
+pub use types::{ChatStreamDataType, EndpointType, PushUrgency, QuotaScope};

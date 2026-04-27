@@ -1015,7 +1015,8 @@ pub enum ChatStreamDataType {
     Typing,
     /// Real-time presence update events (`"presence"`).
     Presence,
-    /// Unrecognized value — silently ignored per spec.
+    /// Catch-all for any unrecognized wire value from a future spec version.
+    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
     #[serde(other)]
     Unknown,
 }
@@ -1141,18 +1142,57 @@ pub struct ChatPresenceEvent {
 /// RFC 8030 §5.3 push urgency levels used in [`ChatPushConfig`] and [`ChatPushCapability`].
 ///
 /// Wire strings: `"very-low"`, `"low"`, `"normal"`, `"high"`.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "kebab-case")]
+/// `Unknown(String)` preserves any unrecognized value from a future spec version so it
+/// can be round-tripped back to the server (e.g. echoed from `ChatPushCapability.supported_urgency_values`
+/// into `ChatPushConfig.urgency`).
 #[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PushUrgency {
     /// Background-only delivery, minimal power impact.
     VeryLow,
     Low,
     Normal,
     High,
-    /// Unrecognized urgency value.
-    #[serde(other)]
-    Unknown,
+    /// Any unrecognized urgency string, preserved as-is for lossless round-trip.
+    Unknown(String),
+}
+
+impl PushUrgency {
+    /// The canonical wire string for this urgency level.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::VeryLow => "very-low",
+            Self::Low => "low",
+            Self::Normal => "normal",
+            Self::High => "high",
+            Self::Unknown(s) => s.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for PushUrgency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl serde::Serialize for PushUrgency {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for PushUrgency {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+        Ok(match raw.as_str() {
+            "very-low" => PushUrgency::VeryLow,
+            "low" => PushUrgency::Low,
+            "normal" => PushUrgency::Normal,
+            "high" => PushUrgency::High,
+            _ => PushUrgency::Unknown(raw),
+        })
+    }
 }
 
 /// Per-account push configuration for a PushSubscription.
@@ -1255,7 +1295,8 @@ pub enum QuotaScope {
     Domain,
     /// Quota applies to all accounts on the server.
     Global,
-    /// Unrecognized scope value.
+    /// Catch-all for any unrecognized wire value from a future spec version.
+    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
     #[serde(other)]
     Unknown,
 }
@@ -1677,7 +1718,7 @@ mod tests {
         assert_eq!(v, ChatKind::Unknown);
     }
 
-    /// Oracle: Unknown catch-all variants serialize as the literal string "unknown".
+    /// Oracle: unit Unknown catch-all variants serialize as the literal string "unknown".
     /// The original wire value is NOT preserved — this is a known serde #[serde(other)] limitation.
     /// These types are deserialization-only in practice; this test documents the fallback behavior.
     #[test]
@@ -1693,6 +1734,29 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&OwnerPresence::Unknown).unwrap(),
             "\"unknown\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ChatStreamDataType::Unknown).unwrap(),
+            "\"unknown\""
+        );
+        assert_eq!(
+            serde_json::to_string(&QuotaScope::Unknown).unwrap(),
+            "\"unknown\""
+        );
+    }
+
+    /// Oracle: PushUrgency::Unknown(String) preserves the original wire value on round-trip.
+    /// Unlike unit Unknown variants, this tuple variant stores and re-emits the original string.
+    #[test]
+    fn test_push_urgency_unknown_preserves_original_string() {
+        let future_value = "very-high";
+        let deserialized: PushUrgency =
+            serde_json::from_str(&format!("\"{future_value}\"")).unwrap();
+        assert_eq!(deserialized, PushUrgency::Unknown(future_value.to_string()));
+        // Serializes back to the original string, not "unknown"
+        assert_eq!(
+            serde_json::to_string(&deserialized).unwrap(),
+            format!("\"{future_value}\"")
         );
     }
 
