@@ -366,7 +366,8 @@ pub struct ChatMember {
 pub enum ChatMemberRole {
     Admin,
     Member,
-    /// Catch-all for any unrecognized wire value.
+    /// Catch-all for any unrecognized wire value from a future spec version.
+    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
     #[serde(other)]
     Unknown,
 }
@@ -398,7 +399,8 @@ pub struct ChannelPermission {
 pub enum ChannelPermissionTargetType {
     Role,
     Member,
-    /// Catch-all for any unrecognized wire value.
+    /// Catch-all for any unrecognized wire value from a future spec version.
+    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
     #[serde(other)]
     Unknown,
 }
@@ -502,7 +504,8 @@ pub enum ChatKind {
     Direct,
     Group,
     Channel,
-    /// Catch-all for any unrecognized wire value. Clients SHOULD treat as unsupported.
+    /// Catch-all for any unrecognized wire value from a future spec version.
+    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
     #[serde(other)]
     Unknown,
 }
@@ -616,7 +619,8 @@ pub enum DeliveryState {
     Delivered,
     Failed,
     Received,
-    /// Catch-all for any unrecognized wire value.
+    /// Catch-all for any unrecognized wire value from a future spec version.
+    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
     #[serde(other)]
     Unknown,
 }
@@ -863,7 +867,8 @@ pub enum OwnerPresence {
     Busy,
     Invisible,
     Offline,
-    /// Catch-all for any unrecognized wire value.
+    /// Catch-all for any unrecognized wire value from a future spec version.
+    /// If serialized, produces the literal string `"unknown"` — not the original wire value.
     #[serde(other)]
     Unknown,
 }
@@ -1354,6 +1359,25 @@ mod tests {
     fn test_chat_kind_unknown_wire_value_becomes_unknown() {
         let v: ChatKind = serde_json::from_str("\"thread\"").unwrap();
         assert_eq!(v, ChatKind::Unknown);
+    }
+
+    /// Oracle: Unknown catch-all variants serialize as the literal string "unknown".
+    /// The original wire value is NOT preserved — this is a known serde #[serde(other)] limitation.
+    /// These types are deserialization-only in practice; this test documents the fallback behavior.
+    #[test]
+    fn test_unknown_catch_all_variants_serialize_as_literal_unknown() {
+        assert_eq!(
+            serde_json::to_string(&ChatKind::Unknown).unwrap(),
+            "\"unknown\""
+        );
+        assert_eq!(
+            serde_json::to_string(&DeliveryState::Unknown).unwrap(),
+            "\"unknown\""
+        );
+        assert_eq!(
+            serde_json::to_string(&OwnerPresence::Unknown).unwrap(),
+            "\"unknown\""
+        );
     }
 
     /// Oracle: unknown ChatMemberRole wire value must deserialize to Unknown, not fail.
