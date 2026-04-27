@@ -114,6 +114,15 @@ pub struct AddedItem {
     pub index: u64,
 }
 
+/// Response to a [`JmapChatClient::chat_typing`] call (JMAP Chat §Chat/typing).
+///
+/// The server echoes only `accountId`. No state token or object list is returned.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TypingResponse {
+    pub account_id: String,
+}
+
 // ---------------------------------------------------------------------------
 // Input types for methods with many optional parameters
 // ---------------------------------------------------------------------------
@@ -268,6 +277,85 @@ pub struct SpaceBanCreateInput<'a> {
     pub user_id: &'a str,
     pub reason: Option<&'a str>,
     pub expires_at: Option<&'a crate::jmap::UTCDate>,
+}
+
+/// One entry in the `addMembers` patch key for [`JmapChatClient::chat_set_update`].
+#[derive(Debug)]
+pub struct AddMemberInput<'a> {
+    /// ChatContact.id of the member to add.
+    pub id: &'a str,
+    /// Role for the new member. `None` lets the server apply the default (`"member"`).
+    pub role: Option<crate::types::ChatMemberRole>,
+}
+
+/// One entry in the `updateMemberRoles` patch key for [`JmapChatClient::chat_set_update`].
+#[derive(Debug)]
+pub struct UpdateMemberRoleInput<'a> {
+    /// ChatContact.id of the member to update.
+    pub id: &'a str,
+    /// New role for this member.
+    pub role: crate::types::ChatMemberRole,
+}
+
+/// Input parameters for [`JmapChatClient::chat_create_direct`].
+#[derive(Debug)]
+pub struct ChatCreateDirectInput<'a> {
+    /// Caller-supplied ULID used as the creation key in the JMAP create map.
+    pub client_id: &'a str,
+    /// ChatContact.id of the other participant.
+    pub contact_id: &'a str,
+}
+
+/// Input parameters for [`JmapChatClient::chat_create_group`].
+#[derive(Debug)]
+pub struct ChatCreateGroupInput<'a> {
+    /// Caller-supplied ULID used as the creation key in the JMAP create map.
+    pub client_id: &'a str,
+    /// Display name for the group.
+    pub name: &'a str,
+    /// ChatContact.ids of initial non-owner members.
+    pub member_ids: &'a [&'a str],
+    pub description: Option<&'a str>,
+    pub avatar_blob_id: Option<&'a str>,
+    pub message_expiry_seconds: Option<u64>,
+}
+
+/// Input parameters for [`JmapChatClient::chat_set_update`].
+///
+/// All fields except `id` are optional; absent fields are not included in the
+/// patch. For nullable spec fields (`mute_until`, `description`, `avatar_blob_id`)
+/// use `Some(None)` to clear and `Some(Some(value))` to set. Slice fields
+/// (`pinned_message_ids`, `add_members`, `remove_members`, `update_member_roles`)
+/// default to `&[]` when no changes are needed.
+///
+/// `Default` is intentionally not derived: `id` has no safe default value.
+#[derive(Debug)]
+pub struct ChatUpdateInput<'a> {
+    /// `Chat.id` to update.
+    pub id: &'a str,
+    pub muted: Option<bool>,
+    /// `Some(None)` clears `muteUntil`; `Some(Some(t))` sets it.
+    pub mute_until: Option<Option<&'a crate::jmap::UTCDate>>,
+    pub receive_typing_indicators: Option<bool>,
+    /// Replace the entire pinned-message list. Pass `Some(&[])` to clear all pins.
+    pub pinned_message_ids: Option<&'a [&'a str]>,
+    /// Spec defines this as `UnsignedInt` (non-nullable). To remove a previously
+    /// set value, omit this field — servers must handle the absence gracefully
+    /// (the spec does not define a null-clear path for `messageExpirySeconds`).
+    pub message_expiry_seconds: Option<u64>,
+    pub receipt_sharing: Option<bool>,
+    /// New display name (group chats, admin only).
+    pub name: Option<&'a str>,
+    /// `Some(None)` clears; `Some(Some(s))` sets (group chats, admin only).
+    pub description: Option<Option<&'a str>>,
+    /// `Some(None)` clears; `Some(Some(id))` sets (group chats, admin only).
+    pub avatar_blob_id: Option<Option<&'a str>>,
+    /// Members to add (group chats, admin only). Pass `&[]` when unused.
+    pub add_members: &'a [AddMemberInput<'a>],
+    /// ChatContact.ids to remove (group chats, admin only). Pass `&[]` when unused.
+    pub remove_members: &'a [&'a str],
+    /// Role changes for existing members (group chats, admin only). Pass `&[]` when unused.
+    pub update_member_roles: &'a [UpdateMemberRoleInput<'a>],
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,6 @@
+{
+  "methodResponses": [["Chat/typing", {
+    "accountId": "account1"
+  }, "r1"]],
+  "sessionState": "sess-abc"
+}

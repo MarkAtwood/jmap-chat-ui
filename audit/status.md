@@ -39,3 +39,7 @@
 [08:13:52] COORDINATOR: mph.2 and mph.3 closed, dispatching mph.4
 [08:17:24] COORDINATOR: mph.4 done, all impl beads closed, starting review
 [08:17:30] COORDINATOR: review round 1, epic jmap-chat-tui-r4c
+[08:25:28] COORDINATOR: claimed epic jmap-chat-tui-1s0 (Chat methods: set, typing, queryChanges)
+[08:29:21] COORDINATOR: phase1 done — 4 beads created, wave0=1s0.1, wave1=1s0.2+1s0.3, wave2=1s0.4
+[08:38:53] COORDINATOR: phase2 done — 1s0.1/2/3/4 all closed, 41 tests passing
+[08:38:59] COORDINATOR: review round 1, epic jmap-chat-tui-3bs

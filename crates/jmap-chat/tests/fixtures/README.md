@@ -106,6 +106,11 @@ variant distinguishes cases (e.g., `chat_contact_no_presence` vs
 | `space_invite_changes_response.json` | `SpaceInvite/changes` response — one created id |
 | `space_invite_set_response.json` | `SpaceInvite/set` response — created map |
 | `method_error_response.json` | `JmapResponse` — `error` invocation (unknownMethod) |
+| `chat_set_create_direct_response.json` | `Chat/set` response (create direct) — created map with server-assigned id |
+| `chat_set_create_group_response.json` | `Chat/set` response (create group) — created map with server-assigned id |
+| `chat_set_update_response.json` | `Chat/set` response (update) — updated map |
+| `chat_typing_response.json` | `Chat/typing` response — accountId only |
+| `chat_query_changes_response.json` | `Chat/queryChanges` response — one added item |
 
 ## When to Commit a Generation Script
 

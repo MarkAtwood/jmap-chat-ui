@@ -9,8 +9,9 @@
 use jmap_chat::client::JmapChatClient;
 use jmap_chat::error::ClientError;
 use jmap_chat::methods::{
-    ChatQueryInput, GetResponse, MessageCreateInput, MessageQueryInput, MessageUpdateInput,
-    PresenceStatusSetInput, ReactionChange, SpaceBanCreateInput, SpaceInviteCreateInput,
+    AddMemberInput, ChatCreateDirectInput, ChatCreateGroupInput, ChatQueryInput, ChatUpdateInput,
+    GetResponse, MessageCreateInput, MessageQueryInput, MessageUpdateInput, PresenceStatusSetInput,
+    ReactionChange, SpaceBanCreateInput, SpaceInviteCreateInput,
 };
 use jmap_chat::types::OwnerPresence;
 use wiremock::matchers::{body_json, method};
@@ -1410,4 +1411,359 @@ async fn message_query_with_text_filter_sends_correct_body() {
         !result.query_state.is_empty(),
         "query_state must not be empty"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Test 36: chat_create_direct — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.3 / JMAP Chat §Chat/set — create direct chat response shape:
+/// newState, created map with server-assigned id. Fixture hand-written from spec.
+///
+/// Body matcher: verifies kind:"direct" and contactId are present in the create object.
+#[tokio::test]
+async fn chat_create_direct_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Chat/set", {
+                "accountId": "account1",
+                "create": {
+                    "client-direct-001": {
+                        "kind": "direct",
+                        "contactId": "contact-id-001"
+                    }
+                }
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("chat_set_create_direct_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_create_direct(
+            &test_session(&api_url),
+            &ChatCreateDirectInput {
+                client_id: "client-direct-001",
+                contact_id: "contact-id-001",
+            },
+        )
+        .await
+        .expect("chat_create_direct must succeed");
+
+    // Oracle: RFC 8620 §5.3 — newState is present, created map contains the client key
+    assert_eq!(result.new_state, "chat-state-001");
+    assert!(
+        result
+            .created
+            .as_ref()
+            .unwrap()
+            .contains_key("client-direct-001"),
+        "created map must contain client-direct-001"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 37: chat_create_group — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.3 / JMAP Chat §Chat/set — create group chat response shape:
+/// newState, created map with server-assigned id. Fixture hand-written from spec.
+///
+/// Body matcher: verifies kind:"group", name, and memberIds are present.
+/// Optional fields (description, avatarBlobId, messageExpirySeconds) are absent
+/// from the request body because they are None, confirming conditional serialization.
+#[tokio::test]
+async fn chat_create_group_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Chat/set", {
+                "accountId": "account1",
+                "create": {
+                    "client-group-001": {
+                        "kind": "group",
+                        "name": "Test Group",
+                        "memberIds": ["contact-id-002"]
+                    }
+                }
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("chat_set_create_group_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_create_group(
+            &test_session(&api_url),
+            &ChatCreateGroupInput {
+                client_id: "client-group-001",
+                name: "Test Group",
+                member_ids: &["contact-id-002"],
+                description: None,
+                avatar_blob_id: None,
+                message_expiry_seconds: None,
+            },
+        )
+        .await
+        .expect("chat_create_group must succeed");
+
+    // Oracle: RFC 8620 §5.3 — newState is present, created map contains the client key
+    assert_eq!(result.new_state, "chat-state-001");
+    assert!(
+        result
+            .created
+            .as_ref()
+            .unwrap()
+            .contains_key("client-group-001"),
+        "created map must contain client-group-001"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 38: chat_set_update (muted) — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.3 / JMAP Chat §Chat/set — update chat response shape:
+/// newState, updated map. Fixture hand-written from spec.
+///
+/// Body matcher: verifies that only the muted field appears in the patch
+/// (absent options are not serialized), confirming conditional patch building.
+#[tokio::test]
+async fn chat_set_update_muted_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Chat/set", {
+                "accountId": "account1",
+                "update": {
+                    "01HV5Z6QKWJ7N3P8R2X4YTMDAA": {
+                        "muted": true
+                    }
+                }
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("chat_set_update_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_set_update(
+            &test_session(&api_url),
+            &ChatUpdateInput {
+                id: "01HV5Z6QKWJ7N3P8R2X4YTMDAA",
+                muted: Some(true),
+                mute_until: None,
+                receive_typing_indicators: None,
+                pinned_message_ids: None,
+                message_expiry_seconds: None,
+                receipt_sharing: None,
+                name: None,
+                description: None,
+                avatar_blob_id: None,
+                add_members: &[],
+                remove_members: &[],
+                update_member_roles: &[],
+            },
+        )
+        .await
+        .expect("chat_set_update must succeed");
+
+    // Oracle: RFC 8620 §5.3 — newState reflects the post-update state
+    assert_eq!(result.new_state, "chat-state-002");
+}
+
+// ---------------------------------------------------------------------------
+// Test 39: chat_typing — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP Chat §Chat/typing — typing response shape: accountId only.
+/// Fixture hand-written from spec.
+///
+/// Body matcher: verifies accountId, chatId, and typing flag are all present.
+#[tokio::test]
+async fn chat_typing_sends_correct_args() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Chat/typing", {
+                "accountId": "account1",
+                "chatId": "01HV5Z6QKWJ7N3P8R2X4YTMDAA",
+                "typing": true
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("chat_typing_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_typing(&test_session(&api_url), "01HV5Z6QKWJ7N3P8R2X4YTMDAA", true)
+        .await
+        .expect("chat_typing must succeed");
+
+    // Oracle: JMAP Chat §Chat/typing — accountId is echoed back
+    assert_eq!(result.account_id, "account1");
+}
+
+// ---------------------------------------------------------------------------
+// Test 40: chat_typing — empty chat_id guard
+// ---------------------------------------------------------------------------
+
+/// Oracle: chat_typing must reject an empty chat_id before any network call,
+/// returning InvalidArgument (same guard pattern as message_set_destroy empty ids).
+#[tokio::test]
+async fn chat_typing_rejects_empty_chat_id() {
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, "http://127.0.0.1:1")
+        .expect("client construction must succeed");
+
+    let result = client
+        .chat_typing(&test_session("http://127.0.0.1:1/api"), "", true)
+        .await;
+
+    assert!(
+        matches!(result.unwrap_err(), ClientError::InvalidArgument(_)),
+        "empty chat_id must produce InvalidArgument"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 41: chat_query_changes — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.6 — Chat/queryChanges response shape: oldQueryState,
+/// newQueryState, removed, added. Fixture hand-written from §5.6 definition.
+///
+/// Body matcher: verifies sinceQueryState is sent and maxChanges key is absent
+/// when None (omit-when-None pattern), confirming conditional serialization.
+#[tokio::test]
+async fn chat_query_changes_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Chat/queryChanges", {
+                "accountId": "account1",
+                "sinceQueryState": "chat-qs-000"
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("chat_query_changes_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_query_changes(&test_session(&api_url), "chat-qs-000", None)
+        .await
+        .expect("chat_query_changes must succeed");
+
+    // Oracle: RFC 8620 §5.6 — states are echoed, removed is empty, added has one entry
+    assert_eq!(result.old_query_state, "chat-qs-000");
+    assert_eq!(result.new_query_state, "chat-qs-001");
+    assert!(result.removed.is_empty(), "removed must be empty");
+    assert_eq!(result.added.len(), 1, "added must have one entry");
+    assert_eq!(result.added[0].id, "01HV5Z6QKWJ7N3P8R2X4YTMDBB");
+}
+
+// ---------------------------------------------------------------------------
+// Test 42: chat_set_update with add_members + role — serialization coverage
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP Chat §Chat/set update — addMembers array with explicit role
+/// must include {"id": "...", "role": "admin"} in the patch. Verifies that
+/// the serde_json::to_value(role) path in chat_set_update is exercised and
+/// produces the correct camelCase wire value ("admin", not "Admin").
+#[tokio::test]
+async fn chat_set_update_with_add_members_role_serializes_correctly() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Chat/set", {
+                "accountId": "account1",
+                "update": {
+                    "01HV5Z6QKWJ7N3P8R2X4YTMDAA": {
+                        "addMembers": [{"id": "contact-id-003", "role": "admin"}]
+                    }
+                }
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("chat_set_update_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let members = [AddMemberInput {
+        id: "contact-id-003",
+        role: Some(jmap_chat::types::ChatMemberRole::Admin),
+    }];
+    let result = client
+        .chat_set_update(
+            &test_session(&api_url),
+            &ChatUpdateInput {
+                id: "01HV5Z6QKWJ7N3P8R2X4YTMDAA",
+                muted: None,
+                mute_until: None,
+                receive_typing_indicators: None,
+                pinned_message_ids: None,
+                message_expiry_seconds: None,
+                receipt_sharing: None,
+                name: None,
+                description: None,
+                avatar_blob_id: None,
+                add_members: &members,
+                remove_members: &[],
+                update_member_roles: &[],
+            },
+        )
+        .await
+        .expect("chat_set_update must succeed");
+
+    // Oracle: chat_set_update_response.json — newState is "chat-state-002"
+    assert_eq!(result.new_state, "chat-state-002");
 }

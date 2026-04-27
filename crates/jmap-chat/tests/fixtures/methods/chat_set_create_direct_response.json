@@ -1,0 +1,15 @@
+{
+  "methodResponses": [["Chat/set", {
+    "accountId": "account1",
+    "oldState": "chat-state-000",
+    "newState": "chat-state-001",
+    "created": {
+      "client-direct-001": {
+        "id": "01HV5Z6QKWJ7N3P8R2X4YTMDAA",
+        "kind": "direct",
+        "createdAt": "2024-01-02T12:00:00Z"
+      }
+    }
+  }, "r1"]],
+  "sessionState": "sess-abc"
+}
