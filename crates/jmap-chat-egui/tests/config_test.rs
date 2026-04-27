@@ -1,4 +1,4 @@
-use jmap_chat::error::ClientError;
+use jmap_chat::ClientError;
 use jmap_chat_egui::config::Config;
 
 /// Construct a Config directly (bypassing clap argv parsing) so tests are

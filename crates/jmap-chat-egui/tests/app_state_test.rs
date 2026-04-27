@@ -1,4 +1,4 @@
-use jmap_chat::types::ContactPresence;
+use jmap_chat::ContactPresence;
 use jmap_chat_egui::app::AppState;
 use jmap_chat_egui::event::{AppEvent, ConnectionStatus};
 
@@ -44,7 +44,7 @@ fn minimal_message_json(id: &str, chat_id: &str) -> String {
 #[test]
 fn apply_chats_loaded() {
     let json = minimal_chat_json("chat-001");
-    let chat: jmap_chat::types::Chat = serde_json::from_str(&json).expect("oracle JSON must parse");
+    let chat: jmap_chat::Chat = serde_json::from_str(&json).expect("oracle JSON must parse");
 
     let mut state = AppState::default();
     state.apply_event(AppEvent::ChatsLoaded(vec![chat.clone()]));
@@ -74,8 +74,7 @@ fn apply_error() {
 fn apply_messages_for_selected_chat() {
     let chat_id = "c1";
     let json = minimal_message_json("msg-001", chat_id);
-    let msg: jmap_chat::types::Message =
-        serde_json::from_str(&json).expect("oracle JSON must parse");
+    let msg: jmap_chat::Message = serde_json::from_str(&json).expect("oracle JSON must parse");
 
     let mut state = AppState::default();
     state.selected_chat = Some(chat_id.to_string());
@@ -94,8 +93,7 @@ fn apply_messages_for_selected_chat() {
 #[test]
 fn apply_messages_for_wrong_chat() {
     let json = minimal_message_json("msg-002", "c2");
-    let msg: jmap_chat::types::Message =
-        serde_json::from_str(&json).expect("oracle JSON must parse");
+    let msg: jmap_chat::Message = serde_json::from_str(&json).expect("oracle JSON must parse");
 
     let mut state = AppState::default();
     state.selected_chat = Some("c1".to_string());

@@ -1,4 +1,4 @@
-use jmap_chat::types::{Chat, ContactPresence, Message};
+use jmap_chat::{Chat, ContactPresence, Message};
 
 /// Events sent from the background client task to the egui UI.
 ///

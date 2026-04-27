@@ -194,6 +194,7 @@ impl<T: serde::Serialize> Patch<T> {
 // ---------------------------------------------------------------------------
 
 /// Input parameters for [`JmapChatClient::chat_query`].
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct ChatQueryInput {
     pub filter_kind: Option<crate::types::ChatKind>,
@@ -203,6 +204,7 @@ pub struct ChatQueryInput {
 }
 
 /// Input parameters for [`JmapChatClient::message_query`].
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct MessageQueryInput<'a> {
     pub chat_id: Option<&'a str>,
@@ -223,6 +225,7 @@ pub struct MessageQueryInput<'a> {
 }
 
 /// Input parameters for [`JmapChatClient::message_create`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct MessageCreateInput<'a> {
     /// Caller-supplied creation key. When `None`, a ULID is generated automatically.
@@ -236,6 +239,37 @@ pub struct MessageCreateInput<'a> {
     /// RFC 3339 timestamp (e.g. from `chrono::Utc::now().to_rfc3339()`).
     pub sent_at: &'a crate::jmap::UTCDate,
     pub reply_to: Option<&'a str>,
+}
+
+impl<'a> MessageCreateInput<'a> {
+    /// Create a `MessageCreateInput` with required fields; optional fields default to `None`.
+    pub fn new(
+        chat_id: &'a str,
+        body: &'a str,
+        body_type: crate::types::BodyType,
+        sent_at: &'a crate::jmap::UTCDate,
+    ) -> Self {
+        Self {
+            client_id: None,
+            chat_id,
+            body,
+            body_type,
+            sent_at,
+            reply_to: None,
+        }
+    }
+
+    /// Set the caller-supplied creation key (overrides the auto-generated ULID).
+    pub fn with_client_id(mut self, id: &'a str) -> Self {
+        self.client_id = Some(id);
+        self
+    }
+
+    /// Set the message this one replies to.
+    pub fn with_reply_to(mut self, id: &'a str) -> Self {
+        self.reply_to = Some(id);
+        self
+    }
 }
 
 /// A single reaction change in a Message/set patch (JMAP Chat §4.5).
@@ -264,6 +298,7 @@ pub enum ReactionChange<'a> {
 /// (hard-delete, propagated to all participants).
 ///
 /// Use `..Default::default()` to fill in unused fields.
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct MessagePatch<'a> {
     /// New message body text (author-only edit).
@@ -288,6 +323,7 @@ pub struct MessagePatch<'a> {
 /// set a value and `Patch::Clear` to null-clear a nullable field.
 ///
 /// Use `..Default::default()` to fill in unused fields.
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct PresenceStatusPatch<'a> {
     pub presence: Option<crate::types::OwnerPresence>,
@@ -299,6 +335,7 @@ pub struct PresenceStatusPatch<'a> {
 }
 
 /// Input parameters for [`JmapChatClient::custom_emoji_query`].
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct CustomEmojiQueryInput<'a> {
     /// Filter to a specific Space's custom emojis. `None` returns all emojis
@@ -309,6 +346,7 @@ pub struct CustomEmojiQueryInput<'a> {
 }
 
 /// Parameters for creating one CustomEmoji via [`JmapChatClient::custom_emoji_create`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct CustomEmojiCreateInput<'a> {
     /// Caller-supplied creation key. When `None`, a ULID is generated automatically.
@@ -321,7 +359,26 @@ pub struct CustomEmojiCreateInput<'a> {
     pub space_id: Option<&'a str>,
 }
 
+impl<'a> CustomEmojiCreateInput<'a> {
+    /// Create a `CustomEmojiCreateInput` with required fields; optional fields default to `None`.
+    pub fn new(name: &'a str, blob_id: &'a str) -> Self {
+        Self {
+            client_id: None,
+            name,
+            blob_id,
+            space_id: None,
+        }
+    }
+
+    /// Set the caller-supplied creation key (overrides the auto-generated ULID).
+    pub fn with_client_id(mut self, id: &'a str) -> Self {
+        self.client_id = Some(id);
+        self
+    }
+}
+
 /// Parameters for creating one SpaceInvite via [`JmapChatClient::space_invite_create`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct SpaceInviteCreateInput<'a> {
     /// Caller-supplied creation key. When `None`, a ULID is generated automatically.
@@ -332,7 +389,33 @@ pub struct SpaceInviteCreateInput<'a> {
     pub max_uses: Option<u64>,
 }
 
+impl<'a> SpaceInviteCreateInput<'a> {
+    /// Create a `SpaceInviteCreateInput` with required fields; optional fields default to `None`.
+    pub fn new(space_id: &'a str) -> Self {
+        Self {
+            client_id: None,
+            space_id,
+            default_channel_id: None,
+            expires_at: None,
+            max_uses: None,
+        }
+    }
+
+    /// Set the caller-supplied creation key (overrides the auto-generated ULID).
+    pub fn with_client_id(mut self, id: &'a str) -> Self {
+        self.client_id = Some(id);
+        self
+    }
+
+    /// Set the maximum number of times this invite may be used.
+    pub fn with_max_uses(mut self, max: u64) -> Self {
+        self.max_uses = Some(max);
+        self
+    }
+}
+
 /// Parameters for creating one SpaceBan via [`JmapChatClient::space_ban_create`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct SpaceBanCreateInput<'a> {
     /// Caller-supplied creation key. When `None`, a ULID is generated automatically.
@@ -344,11 +427,31 @@ pub struct SpaceBanCreateInput<'a> {
     pub expires_at: Option<&'a crate::jmap::UTCDate>,
 }
 
+impl<'a> SpaceBanCreateInput<'a> {
+    /// Create a `SpaceBanCreateInput` with required fields; optional fields default to `None`.
+    pub fn new(space_id: &'a str, user_id: &'a str) -> Self {
+        Self {
+            client_id: None,
+            space_id,
+            user_id,
+            reason: None,
+            expires_at: None,
+        }
+    }
+
+    /// Set the caller-supplied creation key (overrides the auto-generated ULID).
+    pub fn with_client_id(mut self, id: &'a str) -> Self {
+        self.client_id = Some(id);
+        self
+    }
+}
+
 /// Patch parameters for [`JmapChatClient::chat_contact_update`].
 ///
 /// All fields are optional; absent fields are omitted from the patch. For the
 /// nullable `display_name` field, use `Patch::Set(s)` to set and `Patch::Clear`
 /// to clear. Use `..Default::default()` to fill in unused fields.
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct ChatContactPatch<'a> {
     pub blocked: Option<bool>,
@@ -371,19 +474,15 @@ pub enum ContactSortProperty {
 /// Input parameters for [`JmapChatClient::chat_contact_query`].
 ///
 /// All fields are optional; an empty filter shows all contacts.
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct ChatContactQueryInput {
     pub filter_blocked: Option<bool>,
     /// Filter to contacts with this exact presence state.
     ///
-    /// # Errors
-    ///
-    /// [`JmapChatClient::chat_contact_query`] returns
-    /// `Err(ClientError::InvalidArgument)` if this field is
-    /// `Some(ContactPresence::Unknown)`. `Unknown` is a deserialization
-    /// catch-all for unrecognized wire values; it has no defined filter
-    /// semantics and must never be sent to the server.
-    pub filter_presence: Option<crate::types::ContactPresence>,
+    /// `Unknown` is not representable here; use [`crate::types::ContactPresenceFilter`],
+    /// which only carries the four wire-valid values.
+    pub filter_presence: Option<crate::types::ContactPresenceFilter>,
     pub position: Option<u64>,
     pub limit: Option<u64>,
     /// Sort property: [`ContactSortProperty::LastSeenAt`], [`ContactSortProperty::Login`], or [`ContactSortProperty::LastActiveAt`].
@@ -393,6 +492,7 @@ pub struct ChatContactQueryInput {
 }
 
 /// Input parameters for [`JmapChatClient::space_create`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct SpaceCreateInput<'a> {
     /// Caller-supplied creation key. When `None`, a ULID is generated automatically.
@@ -403,7 +503,26 @@ pub struct SpaceCreateInput<'a> {
     pub icon_blob_id: Option<&'a str>,
 }
 
+impl<'a> SpaceCreateInput<'a> {
+    /// Create a `SpaceCreateInput` with required fields; optional fields default to `None`.
+    pub fn new(name: &'a str) -> Self {
+        Self {
+            client_id: None,
+            name,
+            description: None,
+            icon_blob_id: None,
+        }
+    }
+
+    /// Set the caller-supplied creation key (overrides the auto-generated ULID).
+    pub fn with_client_id(mut self, id: &'a str) -> Self {
+        self.client_id = Some(id);
+        self
+    }
+}
+
 /// Input parameters for [`JmapChatClient::space_query`].
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct SpaceQueryInput<'a> {
     /// Filter by substring match on Space name.
@@ -435,6 +554,7 @@ pub struct SpaceJoinResponse {
 }
 
 /// One entry in the `addMembers` patch key for [`JmapChatClient::chat_update`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct AddMemberInput<'a> {
     /// ChatContact.id of the member to add.
@@ -443,13 +563,34 @@ pub struct AddMemberInput<'a> {
     pub role: Option<crate::types::ChatMemberRole>,
 }
 
+impl<'a> AddMemberInput<'a> {
+    /// Create an `AddMemberInput`; `role` defaults to `None` (server assigns default).
+    pub fn new(id: &'a str) -> Self {
+        Self { id, role: None }
+    }
+
+    /// Set the role for this member.
+    pub fn with_role(mut self, role: crate::types::ChatMemberRole) -> Self {
+        self.role = Some(role);
+        self
+    }
+}
+
 /// One entry in the `updateMemberRoles` patch key for [`JmapChatClient::chat_update`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct UpdateMemberRoleInput<'a> {
     /// ChatContact.id of the member to update.
     pub id: &'a str,
     /// New role for this member.
     pub role: crate::types::ChatMemberRole,
+}
+
+impl<'a> UpdateMemberRoleInput<'a> {
+    /// Create an `UpdateMemberRoleInput` with the target member and their new role.
+    pub fn new(id: &'a str, role: crate::types::ChatMemberRole) -> Self {
+        Self { id, role }
+    }
 }
 
 /// Input parameters for [`JmapChatClient::chat_create`].
@@ -499,6 +640,7 @@ pub enum ChatCreateInput<'a> {
 /// `Patch::Clear` to null-clear. Slice fields default to `None` (no change).
 ///
 /// Use `..Default::default()` to fill in unused fields.
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct ChatPatch<'a> {
     pub muted: Option<bool>,
@@ -526,6 +668,7 @@ pub struct ChatPatch<'a> {
 }
 
 /// One member to add in the `addMembers` patch key of [`JmapChatClient::space_update`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct SpaceAddMemberInput<'a> {
     /// ChatContact.id of the member to add.
@@ -534,7 +677,15 @@ pub struct SpaceAddMemberInput<'a> {
     pub role_ids: Option<&'a [&'a str]>,
 }
 
+impl<'a> SpaceAddMemberInput<'a> {
+    /// Create a `SpaceAddMemberInput`; `role_ids` defaults to `None`.
+    pub fn new(id: &'a str) -> Self {
+        Self { id, role_ids: None }
+    }
+}
+
 /// One member update in the `updateMembers` patch key of [`JmapChatClient::space_update`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct SpaceUpdateMemberInput<'a> {
     /// ChatContact.id of the member to update.
@@ -544,13 +695,37 @@ pub struct SpaceUpdateMemberInput<'a> {
     pub nick: Patch<&'a str>,
 }
 
+impl<'a> SpaceUpdateMemberInput<'a> {
+    /// Create a `SpaceUpdateMemberInput`; optional fields default to `None`/`Keep`.
+    pub fn new(id: &'a str) -> Self {
+        Self {
+            id,
+            role_ids: None,
+            nick: Patch::Keep,
+        }
+    }
+}
+
 /// One channel to add in the `addChannels` patch key of [`JmapChatClient::space_update`].
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct SpaceAddChannelInput<'a> {
     pub name: &'a str,
     pub category_id: Option<&'a str>,
     pub position: Option<u64>,
     pub topic: Option<&'a str>,
+}
+
+impl<'a> SpaceAddChannelInput<'a> {
+    /// Create a `SpaceAddChannelInput`; optional fields default to `None`.
+    pub fn new(name: &'a str) -> Self {
+        Self {
+            name,
+            category_id: None,
+            position: None,
+            topic: None,
+        }
+    }
 }
 
 /// Patch parameters for [`JmapChatClient::space_update`].
@@ -563,6 +738,7 @@ pub struct SpaceAddChannelInput<'a> {
 /// are out of scope for this epic.
 ///
 /// Use `..Default::default()` to fill in unused fields.
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct SpacePatch<'a> {
     /// New display name (`manage_space` permission required).
@@ -590,8 +766,8 @@ pub struct SpacePatch<'a> {
 /// Creates a PushSubscription (RFC 8620 §7.2) with the optional `chatPush`
 /// extension (draft-atwood-jmap-chat-push-00 §3.1).
 ///
-/// `client_id`, `device_client_id`, and `url` have no safe defaults; they
-/// must always be supplied.
+/// `device_client_id` and `url` have no safe defaults and must always be supplied.
+#[non_exhaustive]
 #[derive(Debug)]
 pub struct PushSubscriptionCreateInput<'a> {
     /// Caller-supplied creation key. When `None`, a ULID is generated automatically.
@@ -610,6 +786,41 @@ pub struct PushSubscriptionCreateInput<'a> {
     pub chat_push: Option<&'a [(&'a str, crate::types::ChatPushConfig)]>,
 }
 
+impl<'a> PushSubscriptionCreateInput<'a> {
+    /// Create a `PushSubscriptionCreateInput` with required fields; optional fields default to `None`.
+    pub fn new(device_client_id: &'a str, url: &'a str) -> Self {
+        Self {
+            client_id: None,
+            device_client_id,
+            url,
+            expires: None,
+            types: None,
+            chat_push: None,
+        }
+    }
+
+    /// Set the caller-supplied creation key (overrides the auto-generated ULID).
+    pub fn with_client_id(mut self, id: &'a str) -> Self {
+        self.client_id = Some(id);
+        self
+    }
+
+    /// Restrict StateChange notifications to these data type names.
+    pub fn with_types(mut self, types: &'a [&'a str]) -> Self {
+        self.types = Some(types);
+        self
+    }
+
+    /// Attach per-account ChatPushConfig entries for inline push.
+    pub fn with_chat_push(
+        mut self,
+        chat_push: &'a [(&'a str, crate::types::ChatPushConfig)],
+    ) -> Self {
+        self.chat_push = Some(chat_push);
+        self
+    }
+}
+
 // ---------------------------------------------------------------------------
 // SessionClient — session-bound client (eliminates &Session threading)
 // ---------------------------------------------------------------------------
@@ -621,11 +832,10 @@ pub struct PushSubscriptionCreateInput<'a> {
 /// every call.
 ///
 /// ```rust,no_run
-/// # use jmap_chat::client::JmapChatClient;
-/// # use jmap_chat::auth::NoneAuth;
-/// # async fn example() -> Result<(), jmap_chat::error::ClientError> {
+/// # use jmap_chat::{JmapChatClient, NoneAuth};
+/// # async fn example() -> Result<(), jmap_chat::ClientError> {
 /// # let client = JmapChatClient::new(NoneAuth, "http://localhost").unwrap();
-/// # let session: jmap_chat::jmap::Session = todo!();
+/// # let session: jmap_chat::Session = todo!();
 /// let sc = client.with_session(&session);
 /// let chats = sc.chat_get(None, None).await?;
 /// # Ok(())
@@ -689,21 +899,14 @@ impl SessionClient<'_> {
 pub(super) const CALL_ID: &str = "r1";
 
 /// Capability URIs for standard JMAP Chat method calls (RFC 8620 §3.3).
-pub(super) const USING_CHAT: &[&str] = &[
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:chat",
-];
+pub(super) const USING_CHAT: &[&str] = &["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"];
 
 /// Capability URIs for Quota method calls.
-pub(super) const USING_QUOTAS: &[&str] = &[
-    "urn:ietf:params:jmap:core",
-    "urn:ietf:params:jmap:quotas",
-];
+pub(super) const USING_QUOTAS: &[&str] =
+    &["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:quotas"];
 
 /// Capability URIs for PushSubscription method calls (RFC 8620 §7.2).
-pub(super) const USING_CORE: &[&str] = &[
-    "urn:ietf:params:jmap:core",
-];
+pub(super) const USING_CORE: &[&str] = &["urn:ietf:params:jmap:core"];
 
 /// Capability URIs for PushSubscription/set with chat push extension.
 pub(super) const USING_CHAT_PUSH: &[&str] = &[

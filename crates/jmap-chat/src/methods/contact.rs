@@ -82,13 +82,6 @@ impl super::SessionClient<'_> {
             filter.insert("blocked".into(), b.into());
         }
         if let Some(p) = &input.filter_presence {
-            // Unknown is a catch-all for unrecognized wire values; it has no
-            // defined filter semantics and must never be sent to the server.
-            if *p == crate::types::ContactPresence::Unknown {
-                return Err(crate::error::ClientError::InvalidArgument(
-                    "filter_presence: ContactPresence::Unknown is not a valid filter value".into(),
-                ));
-            }
             filter.insert("presence".into(), serde_json::to_value(p)?);
         }
         let filter_val = if filter.is_empty() {
@@ -133,7 +126,8 @@ impl super::SessionClient<'_> {
         if let Some(mc) = max_changes {
             args["maxChanges"] = mc.into();
         }
-        let (call_id, req) = super::build_request("ChatContact/queryChanges", args, super::USING_CHAT);
+        let (call_id, req) =
+            super::build_request("ChatContact/queryChanges", args, super::USING_CHAT);
         let resp = self.call(api_url, &req).await?;
         crate::client::extract_response(resp, call_id)
     }

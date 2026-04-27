@@ -4,13 +4,11 @@
 // asserts key fields of the response.  Fixtures are in tests/fixtures/methods/
 // (response shapes) and tests/fixtures/jmap/ (request shapes).
 
-use jmap_chat::client::JmapChatClient;
-use jmap_chat::jmap::JmapRequestBuilder;
-use jmap_chat::methods::PushSubscriptionCreateInput;
+use jmap_chat::{JmapChatClient, JmapRequestBuilder, PushSubscriptionCreateInput};
 use wiremock::matchers::{body_json, method};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-fn test_session(api_url: &str) -> jmap_chat::jmap::Session {
+fn test_session(api_url: &str) -> jmap_chat::Session {
     serde_json::from_value(serde_json::json!({
         "capabilities": {},
         "accounts": {},
@@ -51,7 +49,7 @@ async fn call_batch_returns_all_responses() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri()).unwrap();
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri()).unwrap();
     let session = test_session(&server.uri());
 
     let req = JmapRequestBuilder::new(vec![
@@ -100,7 +98,7 @@ async fn quota_get_returns_quota_list() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri()).unwrap();
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri()).unwrap();
     let session = test_session(&server.uri());
 
     let quotas = client
@@ -118,7 +116,7 @@ async fn quota_get_returns_quota_list() {
         .find(|q| q.id == "quota-msg-1")
         .expect("quota-msg-1 must be present");
     assert_eq!(msg_quota.name, "Message Storage");
-    assert_eq!(msg_quota.scope, jmap_chat::types::QuotaScope::Account);
+    assert_eq!(msg_quota.scope, jmap_chat::QuotaScope::Account);
     assert_eq!(msg_quota.data_types, vec!["Message"]);
     assert_eq!(msg_quota.used, 52428800);
     assert_eq!(msg_quota.hard_limit, 1073741824);
@@ -161,7 +159,7 @@ async fn quota_get_uses_quotas_capability_not_chat() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri()).unwrap();
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri()).unwrap();
     let session = test_session(&server.uri());
 
     client
@@ -195,20 +193,16 @@ async fn push_subscription_create_without_chat_push_uses_core_only() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri()).unwrap();
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri()).unwrap();
     let api_url = format!("{}/api", server.uri());
     let session = test_session(&api_url);
 
     client
         .with_session(&session)
-        .push_subscription_create(&PushSubscriptionCreateInput {
-            client_id: Some("client-push-001"),
-            device_client_id: "device-abc",
-            url: "https://push.example.com/endpoint",
-            expires: None,
-            types: None,
-            chat_push: None,
-        })
+        .push_subscription_create(
+            &PushSubscriptionCreateInput::new("device-abc", "https://push.example.com/endpoint")
+                .with_client_id("client-push-001"),
+        )
         .await
         .expect("push_subscription_create without chatPush must succeed");
 }

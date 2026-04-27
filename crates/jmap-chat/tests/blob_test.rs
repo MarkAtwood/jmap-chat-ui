@@ -7,7 +7,7 @@
 // Fixtures are either inline JSON (upload) or raw bytes (download); none are
 // produced by the code under test.
 
-use jmap_chat::{blob::BlobUploadResponse, client::JmapChatClient, error::ClientError};
+use jmap_chat::{BlobUploadResponse, ClientError, JmapChatClient};
 use wiremock::{
     matchers::{method, path},
     Mock, MockServer, ResponseTemplate,
@@ -39,7 +39,7 @@ async fn upload_blob_happy_path() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri())
         .expect("client construction must not fail");
     let upload_template = format!("{}/upload/{{accountId}}/", server.uri());
 
@@ -76,7 +76,7 @@ async fn upload_blob_sha256_mismatch() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri())
         .expect("client construction must not fail");
     let upload_template = format!("{}/upload/{{accountId}}/", server.uri());
 
@@ -114,7 +114,7 @@ async fn upload_blob_no_sha256_skips_check() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri())
         .expect("client construction must not fail");
     let upload_template = format!("{}/upload/{{accountId}}/", server.uri());
 
@@ -143,7 +143,7 @@ async fn download_blob_happy_path() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri())
         .expect("client construction must not fail");
     let dl_template = format!(
         "{}/download/{{accountId}}/{{blobId}}/{{name}}",
@@ -181,7 +181,7 @@ async fn download_blob_sha256_mismatch() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri())
         .expect("client construction must not fail");
     let dl_template = format!(
         "{}/download/{{accountId}}/{{blobId}}/{{name}}",
@@ -224,7 +224,7 @@ async fn download_blob_no_sha256_skips_check() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri())
         .expect("client construction must not fail");
     let dl_template = format!(
         "{}/download/{{accountId}}/{{blobId}}/{{name}}",
@@ -255,7 +255,7 @@ async fn download_blob_with_type_substitution() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri())
         .expect("client construction must not fail");
     // RFC 8620 §6.2 recommends placing {type} in the query section to avoid
     // path-segment slash encoding issues; here we use a path-free template to
@@ -288,7 +288,7 @@ async fn download_blob_with_type_substitution() {
 /// Fixture hand-written from JMAP blob extension spec §7.
 #[tokio::test]
 async fn blob_convert_returns_typed_response() {
-    use jmap_chat::methods::blob::BlobConvertResponse;
+    use jmap_chat::BlobConvertResponse;
     use wiremock::matchers::body_json;
 
     let server = MockServer::start().await;
@@ -315,11 +315,11 @@ async fn blob_convert_returns_typed_response() {
         .mount(&server)
         .await;
 
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+    let client = JmapChatClient::new(jmap_chat::NoneAuth, &server.uri())
         .expect("client construction must succeed");
     // Build a minimal session with blob2 capability via serde to handle all fields.
     let api_url = format!("{}/api", server.uri());
-    let session: jmap_chat::jmap::Session = serde_json::from_value(serde_json::json!({
+    let session: jmap_chat::Session = serde_json::from_value(serde_json::json!({
         "capabilities": { "urn:ietf:params:jmap:blob2": null },
         "accounts": {
             "account1": {

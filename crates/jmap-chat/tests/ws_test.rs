@@ -11,7 +11,7 @@
 // and RFC 8887. None of these payloads are produced by the code under test.
 
 use futures::{SinkExt as _, StreamExt as _};
-use jmap_chat::{auth::NoneAuth, client::JmapChatClient, types::ChatStreamEnable, ws::WsFrame};
+use jmap_chat::{ChatStreamEnable, JmapChatClient, NoneAuth, WsFrame};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
@@ -187,7 +187,7 @@ async fn receives_chat_presence_event() {
     match frame {
         WsFrame::ChatPresence(evt) => {
             assert_eq!(evt.contact_id.as_str(), "user-abc");
-            assert_eq!(evt.presence, jmap_chat::types::ContactPresence::Online);
+            assert_eq!(evt.presence, jmap_chat::ContactPresence::Online);
             assert_eq!(evt.status_text, Some(Some("Working remotely".to_string())));
         }
         other => panic!("expected ChatPresence, got {other:?}"),
@@ -275,10 +275,10 @@ async fn send_stream_enable_correct_json_shape() {
 
     let enable = ChatStreamEnable::new(
         vec![
-            jmap_chat::types::ChatStreamDataType::Typing,
-            jmap_chat::types::ChatStreamDataType::Presence,
+            jmap_chat::ChatStreamDataType::Typing,
+            jmap_chat::ChatStreamDataType::Presence,
         ],
-        Some(vec![jmap_chat::jmap::Id::from_trusted("chat-1")]),
+        Some(vec![jmap_chat::Id::from_trusted("chat-1")]),
         None,
     );
     session

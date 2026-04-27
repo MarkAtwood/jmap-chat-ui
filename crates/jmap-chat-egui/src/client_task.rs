@@ -20,12 +20,10 @@ use std::time::Duration;
 use eframe::egui;
 use futures::StreamExt;
 
-use jmap_chat::client::JmapChatClient;
-use jmap_chat::error::ClientError;
-use jmap_chat::methods::{ChatQueryInput, MessageCreateInput, MessageQueryInput};
-use jmap_chat::sse::SseEvent;
-use jmap_chat::types::{ChatStreamDataType, ChatStreamEnable, ContactPresence};
-use jmap_chat::ws::WsFrame;
+use jmap_chat::{
+    ChatQueryInput, ChatStreamDataType, ChatStreamEnable, ClientError, ContactPresence,
+    JmapChatClient, MessageCreateInput, MessageQueryInput, SseEvent, WsFrame,
+};
 
 use crate::event::{AppCommand, AppEvent, ConnectionStatus};
 
@@ -403,18 +401,17 @@ pub async fn run(
                     Some(AppCommand::SendMessage { chat_id, body }) => {
                         let client_id = ulid::Ulid::new().to_string();
                         let sent_at =
-                            jmap_chat::jmap::UTCDate::from_trusted(now_rfc3339());
+                            jmap_chat::UTCDate::from_trusted(now_rfc3339());
                         match client
                             .with_session(&session)
                             .message_create(
-                                &MessageCreateInput {
-                                    client_id: Some(client_id.as_str()),
-                                    chat_id: &chat_id,
-                                    body: &body,
-                                    body_type: jmap_chat::types::BodyType::Plain,
-                                    sent_at: &sent_at,
-                                    reply_to: None,
-                                },
+                                &MessageCreateInput::new(
+                                    &chat_id,
+                                    &body,
+                                    jmap_chat::BodyType::Plain,
+                                    &sent_at,
+                                )
+                                .with_client_id(client_id.as_str()),
                             )
                             .await
                         {
@@ -544,7 +541,7 @@ async fn bootstrap_session(
     client: Arc<JmapChatClient>,
     tx: &EventSender,
     ctx: &egui::Context,
-) -> Option<jmap_chat::jmap::Session> {
+) -> Option<jmap_chat::Session> {
     let backoff_secs: &[u64] = &[1, 2, 4, 8, 16];
     let mut attempt = 0usize;
 
@@ -600,20 +597,21 @@ async fn bootstrap_session(
 /// Returns the server `state` string from the get response.
 async fn load_chats(
     client: Arc<JmapChatClient>,
-    session: &jmap_chat::jmap::Session,
+    session: &jmap_chat::Session,
     tx: &EventSender,
     ctx: &egui::Context,
 ) -> Result<String, ClientError> {
     const PAGE: u64 = 200;
-    let mut all_ids: Vec<jmap_chat::jmap::Id> = Vec::new();
+    let mut all_ids: Vec<jmap_chat::Id> = Vec::new();
     let mut position = 0u64;
     loop {
         let query = client
             .with_session(session)
-            .chat_query(&ChatQueryInput {
-                limit: Some(PAGE),
-                position: Some(position),
-                ..Default::default()
+            .chat_query(&{
+                let mut q = ChatQueryInput::default();
+                q.limit = Some(PAGE);
+                q.position = Some(position);
+                q
             })
             .await?;
         let fetched = query.ids.len() as u64;
@@ -643,17 +641,18 @@ async fn load_chats(
 
 async fn load_messages_for_chat(
     client: Arc<JmapChatClient>,
-    session: &jmap_chat::jmap::Session,
+    session: &jmap_chat::Session,
     chat_id: &str,
     tx: &EventSender,
     ctx: &egui::Context,
 ) -> Result<Option<String>, ClientError> {
     let query = client
         .with_session(session)
-        .message_query(&MessageQueryInput {
-            chat_id: Some(chat_id),
-            limit: Some(100),
-            ..Default::default()
+        .message_query(&{
+            let mut q = MessageQueryInput::default();
+            q.chat_id = Some(chat_id);
+            q.limit = Some(100);
+            q
         })
         .await?;
 
@@ -696,7 +695,7 @@ async fn load_messages_for_chat(
 /// read_position_id.
 async fn load_read_positions(
     client: Arc<JmapChatClient>,
-    session: &jmap_chat::jmap::Session,
+    session: &jmap_chat::Session,
 ) -> Result<HashMap<String, String>, ClientError> {
     let resp = client.with_session(session).read_position_get(None).await?;
     let mut map = HashMap::with_capacity(resp.list.len());
@@ -723,7 +722,7 @@ async fn load_read_positions(
 /// deliberate user action rather than a background heuristic.
 async fn try_mark_read(
     client: &JmapChatClient,
-    session: &jmap_chat::jmap::Session,
+    session: &jmap_chat::Session,
     chat_id: &str,
     last_msg_id: Option<String>,
     read_positions: &HashMap<String, String>,
@@ -869,7 +868,7 @@ async fn run_sse_stream(
 // structs without reducing complexity.
 async fn handle_state_change(
     client: Arc<JmapChatClient>,
-    session: &jmap_chat::jmap::Session,
+    session: &jmap_chat::Session,
     changed: &HashMap<String, HashMap<String, String>>,
     current_chat: &Option<String>,
     chat_state: &mut Option<String>,
@@ -925,7 +924,7 @@ async fn handle_state_change(
 /// unchanged on the next sync attempt).
 async fn full_reload_chats(
     client: Arc<JmapChatClient>,
-    session: &jmap_chat::jmap::Session,
+    session: &jmap_chat::Session,
     tx: &EventSender,
     ctx: &egui::Context,
 ) -> Option<String> {
@@ -957,7 +956,7 @@ async fn full_reload_chats(
 /// is left unchanged so the next attempt retries with the same baseline).
 async fn chat_delta_sync(
     client: Arc<JmapChatClient>,
-    session: &jmap_chat::jmap::Session,
+    session: &jmap_chat::Session,
     chat_state: Option<&str>,
     tx: &EventSender,
     ctx: &egui::Context,

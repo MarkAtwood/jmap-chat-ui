@@ -106,7 +106,7 @@ pub struct Span {
 /// Per spec (IMPROVEMENTS.md §13), `Message.body` for rich messages is a JSON-encoded *string*
 /// (not an embedded object). Parse with:
 /// ```rust,no_run
-/// # use jmap_chat::types::RichBody;
+/// # use jmap_chat::RichBody;
 /// # let message_body = String::new();
 /// let rich: RichBody = serde_json::from_str(&message_body).unwrap();
 /// ```
@@ -358,6 +358,39 @@ pub enum ContactPresence {
     /// Catch-all for any unrecognized wire value, including legacy `"unknown"` from old servers.
     #[serde(other)]
     Unknown,
+}
+
+/// Presence filter for [`crate::methods::ChatContactQueryInput`].
+///
+/// Mirrors [`ContactPresence`] but omits `Unknown`, which has no defined
+/// filter semantics and must never be sent to the server.
+///
+/// Use [`TryFrom<ContactPresence>`] to convert a deserialized presence value
+/// into a filter value (fails if `Unknown`).
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ContactPresenceFilter {
+    Online,
+    Away,
+    Busy,
+    Invisible,
+    Offline,
+}
+
+impl TryFrom<ContactPresence> for ContactPresenceFilter {
+    /// Conversion fails when `p` is `ContactPresence::Unknown`.
+    type Error = ();
+    fn try_from(p: ContactPresence) -> Result<Self, ()> {
+        match p {
+            ContactPresence::Online => Ok(ContactPresenceFilter::Online),
+            ContactPresence::Away => Ok(ContactPresenceFilter::Away),
+            ContactPresence::Busy => Ok(ContactPresenceFilter::Busy),
+            ContactPresence::Invisible => Ok(ContactPresenceFilter::Invisible),
+            ContactPresence::Offline => Ok(ContactPresenceFilter::Offline),
+            _ => Err(()),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

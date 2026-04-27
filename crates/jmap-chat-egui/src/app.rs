@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use jmap_chat::types::{Chat, ChatKind, ContactPresence, Message};
+use jmap_chat::{Chat, ChatKind, ContactPresence, Message};
 
 use crate::event::{AppEvent, ConnectionStatus};
 

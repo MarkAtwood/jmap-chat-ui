@@ -218,9 +218,12 @@ impl serde::Serialize for Invocation {
 
 impl<'de> serde::Deserialize<'de> for Invocation {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let (method, args, call_id) =
-            <(String, serde_json::Value, String)>::deserialize(d)?;
-        Ok(Self { method, args, call_id })
+        let (method, args, call_id) = <(String, serde_json::Value, String)>::deserialize(d)?;
+        Ok(Self {
+            method,
+            args,
+            call_id,
+        })
     }
 }
 

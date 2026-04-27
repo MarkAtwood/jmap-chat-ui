@@ -30,15 +30,18 @@ impl JmapChatClient {
     /// `"https://100.64.1.1:8008"`.
     pub fn new(auth: impl AuthProvider + 'static, base_url: &str) -> Result<Self, ClientError> {
         if base_url.is_empty() {
-            return Err(ClientError::InvalidArgument("base_url may not be empty".into()));
+            return Err(ClientError::InvalidArgument(
+                "base_url may not be empty".into(),
+            ));
         }
-        let parsed = url::Url::parse(base_url)
-            .map_err(|e| ClientError::InvalidArgument(format!("base_url is not a valid URL: {e}")))?;
+        let parsed = url::Url::parse(base_url).map_err(|e| {
+            ClientError::InvalidArgument(format!("base_url is not a valid URL: {e}"))
+        })?;
         let path = parsed.path();
         if path != "/" {
-            return Err(ClientError::InvalidArgument(
-                format!("base_url must not have a path component, got: {path:?}")
-            ));
+            return Err(ClientError::InvalidArgument(format!(
+                "base_url must not have a path component, got: {path:?}"
+            )));
         }
         if parsed.query().is_some() {
             return Err(ClientError::InvalidArgument(
@@ -204,7 +207,8 @@ impl JmapChatClient {
         &self,
         event_source_url: &str,
         last_event_id: Option<&str>,
-    ) -> Result<impl futures::Stream<Item = Result<SseFrame, ClientError>> + Send, ClientError> {
+    ) -> Result<impl futures::Stream<Item = Result<SseFrame, ClientError>> + Send, ClientError>
+    {
         let mut req = self
             .http
             .get(event_source_url)
@@ -330,12 +334,14 @@ pub(crate) fn extract_response<T: serde::de::DeserializeOwned>(
         .ok_or_else(|| ClientError::MethodNotFound(call_id.to_string()))?;
 
     if inv.method == "error" {
-        let err_type = inv.args
+        let err_type = inv
+            .args
             .get("type")
             .and_then(|v| v.as_str())
             .unwrap_or("serverError")
             .to_string();
-        let description = inv.args
+        let description = inv
+            .args
             .get("description")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
@@ -798,8 +804,7 @@ mod tests {
     /// Oracle: base_url validation — a URL with a path component must be rejected.
     #[test]
     fn new_rejects_base_url_with_path() {
-        let result = JmapChatClient::new(crate::auth::NoneAuth, "https://host/path")
-            .map(|_| ());
+        let result = JmapChatClient::new(crate::auth::NoneAuth, "https://host/path").map(|_| ());
         match result {
             Err(ClientError::InvalidArgument(_)) => {}
             other => panic!("expected InvalidArgument, got {other:?}"),
@@ -809,8 +814,7 @@ mod tests {
     /// Oracle: base_url validation — an invalid URL string must be rejected.
     #[test]
     fn new_rejects_invalid_url() {
-        let result = JmapChatClient::new(crate::auth::NoneAuth, "not a url")
-            .map(|_| ());
+        let result = JmapChatClient::new(crate::auth::NoneAuth, "not a url").map(|_| ());
         match result {
             Err(ClientError::InvalidArgument(_)) => {}
             other => panic!("expected InvalidArgument, got {other:?}"),
@@ -827,16 +831,18 @@ mod tests {
     /// Oracle: base_url validation — an IP:port URL (as documented in the constructor) must be accepted.
     #[test]
     fn new_accepts_ip_port_base_url() {
-        let result = JmapChatClient::new(crate::auth::NoneAuth, "https://100.64.1.1:8008")
-            .map(|_| ());
-        assert!(result.is_ok(), "IP:port base_url must be accepted: {result:?}");
+        let result =
+            JmapChatClient::new(crate::auth::NoneAuth, "https://100.64.1.1:8008").map(|_| ());
+        assert!(
+            result.is_ok(),
+            "IP:port base_url must be accepted: {result:?}"
+        );
     }
 
     /// Oracle: base_url validation — an IPv6 literal URL must be accepted.
     #[test]
     fn new_accepts_ipv6_base_url() {
-        let result = JmapChatClient::new(crate::auth::NoneAuth, "https://[::1]:8008")
-            .map(|_| ());
+        let result = JmapChatClient::new(crate::auth::NoneAuth, "https://[::1]:8008").map(|_| ());
         assert!(result.is_ok(), "IPv6 base_url must be accepted: {result:?}");
     }
 

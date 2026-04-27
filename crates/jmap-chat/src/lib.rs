@@ -1,32 +1,63 @@
-pub mod auth;
-pub mod blob;
-pub mod client;
-pub mod error;
-pub mod jmap;
-pub mod methods;
-pub mod sse;
-pub mod types;
-pub mod utils;
-pub mod ws;
+pub(crate) mod auth;
+pub(crate) mod blob;
+pub(crate) mod client;
+pub(crate) mod error;
+pub(crate) mod jmap;
+pub(crate) mod methods;
+pub(crate) mod sse;
+pub(crate) mod types;
+pub(crate) mod utils;
+pub(crate) mod ws;
 
-// Core client types
-#[doc(inline)]
-pub use client::JmapChatClient;
-#[doc(inline)]
-pub use methods::SessionClient;
-
-// Error type
-#[doc(inline)]
-pub use error::ClientError;
-
-// Auth providers
-#[doc(inline)]
+// --- auth ---
 pub use auth::{AuthProvider, BasicAuth, BearerAuth, CustomCaAuth, NoneAuth};
 
-// JMAP core types
-#[doc(inline)]
-pub use jmap::{Id, Session, UTCDate};
+// --- blob ---
+pub use blob::BlobUploadResponse;
 
-// Commonly-used enum types
-#[doc(inline)]
-pub use types::{ChatStreamDataType, EndpointType, PushUrgency, QuotaScope};
+// --- client ---
+pub use client::JmapChatClient;
+
+// --- error ---
+pub use error::ClientError;
+
+// --- jmap core types ---
+pub use jmap::{
+    AccountInfo, ChatCapability, ChatPushCapability, ChatWebSocketCapability, Id, Invocation,
+    JmapRequest, JmapRequestBuilder, JmapResponse, ResultReference, Session, UTCDate,
+    WebSocketCapability,
+};
+
+// --- domain types ---
+pub use types::{
+    Attachment, BodyType, Category, ChannelPermission, ChannelPermissionTargetType, Chat,
+    ChatContact, ChatKind, ChatMember, ChatMemberRole, ChatMessageEntry, ChatMessagePush,
+    ChatPresenceEvent, ChatPushConfig, ChatStreamDataType, ChatStreamDisable, ChatStreamEnable,
+    ChatTypingEvent, ContactPresence, ContactPresenceFilter, CustomEmoji, DeliveryReceipt,
+    DeliveryState, Endpoint, EndpointType, Mention, Message, MessageAction, MessageRevision,
+    OwnerPresence, PresenceStatus, PushUrgency, QuotaScope, Reaction, ReadPosition, RichBody,
+    SenderIdOrSelf, Space, SpaceBan, SpaceInvite, SpaceMember, SpaceRole, Span, SpanType,
+};
+
+// --- SSE types ---
+pub use sse::{SseEvent, SseFrame};
+
+// --- WebSocket types ---
+pub use ws::{WsFrame, WsSession};
+
+// --- utility functions ---
+pub use utils::{format_receipt_timestamp, format_receipt_timestamp_at};
+
+// --- method response/input/patch types ---
+pub use methods::blob::{BlobConvertResponse, BlobLookupEntry, BlobLookupResponse};
+pub use methods::quota::Quota;
+pub use methods::{
+    AddMemberInput, AddedItem, ChangesResponse, ChatContactPatch, ChatContactQueryInput,
+    ChatCreateInput, ChatPatch, ChatQueryInput, ContactSortProperty, CustomEmojiCreateInput,
+    CustomEmojiQueryInput, GetResponse, MessageCreateInput, MessagePatch, MessageQueryInput, Patch,
+    PresenceStatusPatch, PushSubscriptionCreateInput, PushSubscriptionCreateResponse,
+    QueryChangesResponse, QueryResponse, ReactionChange, SessionClient, SetError, SetResponse,
+    SpaceAddChannelInput, SpaceAddMemberInput, SpaceBanCreateInput, SpaceCreateInput,
+    SpaceInviteCreateInput, SpaceJoinInput, SpaceJoinResponse, SpacePatch, SpaceQueryInput,
+    SpaceUpdateMemberInput, TypingResponse, UpdateMemberRoleInput,
+};

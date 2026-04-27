@@ -137,7 +137,8 @@ impl super::SessionClient<'_> {
         if let Some(mc) = max_changes {
             args["maxChanges"] = mc.into();
         }
-        let (call_id, req) = super::build_request("PresenceStatus/changes", args, super::USING_CHAT);
+        let (call_id, req) =
+            super::build_request("PresenceStatus/changes", args, super::USING_CHAT);
         let resp = self.call(api_url, &req).await?;
         crate::client::extract_response(resp, call_id)
     }

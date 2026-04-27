@@ -13,11 +13,10 @@ fn main() -> eframe::Result<()> {
         std::process::exit(1);
     });
 
-    let client =
-        jmap_chat::client::JmapChatClient::new(auth, &config.server_url).unwrap_or_else(|e| {
-            eprintln!("error: {e}");
-            std::process::exit(1);
-        });
+    let client = jmap_chat::JmapChatClient::new(auth, &config.server_url).unwrap_or_else(|e| {
+        eprintln!("error: {e}");
+        std::process::exit(1);
+    });
 
     // Unbounded channel from background task to UI: events are never dropped
     // due to backpressure (no channel-full condition; receiver is always draining).

@@ -8,9 +8,7 @@
 //! Fixtures live in tests/fixtures/session/ and are committed alongside
 //! this file as independent oracles.
 
-use jmap_chat::auth::NoneAuth;
-use jmap_chat::client::JmapChatClient;
-use jmap_chat::error::ClientError;
+use jmap_chat::{ClientError, JmapChatClient, NoneAuth};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 

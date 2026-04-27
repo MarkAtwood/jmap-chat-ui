@@ -64,7 +64,11 @@ impl super::SessionClient<'_> {
                 "urn:ietf:params:jmap:core".to_string(),
                 "urn:ietf:params:jmap:blob2".to_string(),
             ],
-            method_calls: vec![crate::jmap::Invocation::new("Blob/lookup", args, super::CALL_ID)],
+            method_calls: vec![crate::jmap::Invocation::new(
+                "Blob/lookup",
+                args,
+                super::CALL_ID,
+            )],
         };
         let resp = self.call(api_url, &req).await?;
         crate::client::extract_response(resp, super::CALL_ID)
@@ -118,7 +122,11 @@ impl super::SessionClient<'_> {
                 "urn:ietf:params:jmap:core".to_string(),
                 "urn:ietf:params:jmap:blob2".to_string(),
             ],
-            method_calls: vec![crate::jmap::Invocation::new("Blob/convert", args, super::CALL_ID)],
+            method_calls: vec![crate::jmap::Invocation::new(
+                "Blob/convert",
+                args,
+                super::CALL_ID,
+            )],
         };
         let resp = self.call(api_url, &req).await?;
         crate::client::extract_response(resp, super::CALL_ID)

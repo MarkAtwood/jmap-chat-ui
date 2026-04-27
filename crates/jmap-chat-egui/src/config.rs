@@ -1,6 +1,5 @@
 use clap::Parser;
-use jmap_chat::auth::{AuthProvider, BasicAuth, BearerAuth, CustomCaAuth, NoneAuth};
-use jmap_chat::error::ClientError;
+use jmap_chat::{AuthProvider, BasicAuth, BearerAuth, ClientError, CustomCaAuth, NoneAuth};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
