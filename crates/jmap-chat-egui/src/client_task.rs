@@ -295,8 +295,8 @@ pub async fn run(
                         if ws_consecutive_failures >= WS_MAX_FAILURES {
                             tracing::warn!(
                                 consecutive = ws_consecutive_failures,
-                                "WebSocket upgrade failed {WS_MAX_FAILURES} times without a successful frame; \
-                                 disabling ephemeral events"
+                                "WebSocket connection failed {WS_MAX_FAILURES} times without a successful \
+                                 chat-stream frame; disabling ephemeral events"
                             );
                             send_event(&tx, &ctx, AppEvent::EphemeralUnavailable);
                             // ws_needs_restart stays false — do not retry further
@@ -325,6 +325,7 @@ pub async fn run(
                         typing,
                     }) => {
                         ws_consecutive_failures = 0;
+                        ws_backoff_idx = 0;
                         send_event(
                             &tx,
                             &ctx,
@@ -336,6 +337,7 @@ pub async fn run(
                         presence,
                     }) => {
                         ws_consecutive_failures = 0;
+                        ws_backoff_idx = 0;
                         send_event(
                             &tx,
                             &ctx,
