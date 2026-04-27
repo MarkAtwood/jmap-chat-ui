@@ -61,8 +61,8 @@ pub struct ChangesResponse {
 
 /// RFC 8620 §5.3 — /set response.
 ///
-/// Used for create (`message_create`, `custom_emoji_set`, `space_ban_set`,
-/// `space_invite_set`), update (`read_position_set`, `presence_status_set`),
+/// Used for create (`message_create`, `custom_emoji_create`, `space_ban_create`,
+/// `space_invite_create`), update (`read_position_update`, `presence_status_update`),
 /// and destroy operations. All optional maps are `None` when absent in the
 /// server response.
 ///
@@ -223,10 +223,9 @@ pub struct MessageCreateInput<'a> {
     pub client_id: Option<&'a str>,
     pub chat_id: &'a str,
     pub body: &'a str,
-    /// MIME type for the message body. Spec-defined values: `"text/plain"`,
-    /// `"text/markdown"`. An unrecognized value will produce a server
-    /// `MethodError`; no client-side validation is performed.
-    pub body_type: &'a str,
+    /// MIME type for the message body. Use [`crate::types::BodyType::Plain`]
+    /// or [`crate::types::BodyType::Markdown`]; `Unknown(s)` passes `s` as-is.
+    pub body_type: crate::types::BodyType,
     /// RFC 3339 timestamp (e.g. from `chrono::Utc::now().to_rfc3339()`).
     pub sent_at: &'a crate::jmap::UTCDate,
     pub reply_to: Option<&'a str>,
@@ -262,8 +261,8 @@ pub enum ReactionChange<'a> {
 pub struct MessagePatch<'a> {
     /// New message body text (author-only edit).
     pub body: Option<&'a str>,
-    /// MIME type for `body` — `"text/plain"` or `"text/markdown"`.
-    pub body_type: Option<&'a str>,
+    /// MIME type for `body`. Set alongside `body` in author-only edits.
+    pub body_type: Option<crate::types::BodyType>,
     /// Reaction changes to apply. `None` (default) = no reaction changes.
     pub reaction_changes: Option<&'a [ReactionChange<'a>]>,
     /// Set the read-receipt timestamp (`Message.readAt`).
@@ -275,7 +274,7 @@ pub struct MessagePatch<'a> {
     pub deleted_for_all: Option<bool>,
 }
 
-/// Patch parameters for [`JmapChatClient::presence_status_set`].
+/// Patch parameters for [`JmapChatClient::presence_status_update`].
 ///
 /// All fields are optional. A field that is `Patch::Keep` (default) is omitted
 /// from the patch, leaving the server value unchanged. Use `Patch::Set(v)` to
@@ -302,7 +301,7 @@ pub struct CustomEmojiQueryInput<'a> {
     pub limit: Option<u64>,
 }
 
-/// Parameters for creating one CustomEmoji via [`JmapChatClient::custom_emoji_set`].
+/// Parameters for creating one CustomEmoji via [`JmapChatClient::custom_emoji_create`].
 #[derive(Debug)]
 pub struct CustomEmojiCreateInput<'a> {
     /// Caller-supplied creation key. When `None`, a ULID is generated automatically.
@@ -315,7 +314,7 @@ pub struct CustomEmojiCreateInput<'a> {
     pub space_id: Option<&'a str>,
 }
 
-/// Parameters for creating one SpaceInvite via [`JmapChatClient::space_invite_set`].
+/// Parameters for creating one SpaceInvite via [`JmapChatClient::space_invite_create`].
 #[derive(Debug)]
 pub struct SpaceInviteCreateInput<'a> {
     /// Caller-supplied creation key. When `None`, a ULID is generated automatically.
@@ -326,7 +325,7 @@ pub struct SpaceInviteCreateInput<'a> {
     pub max_uses: Option<u64>,
 }
 
-/// Parameters for creating one SpaceBan via [`JmapChatClient::space_ban_set`].
+/// Parameters for creating one SpaceBan via [`JmapChatClient::space_ban_create`].
 #[derive(Debug)]
 pub struct SpaceBanCreateInput<'a> {
     /// Caller-supplied creation key. When `None`, a ULID is generated automatically.
@@ -338,7 +337,7 @@ pub struct SpaceBanCreateInput<'a> {
     pub expires_at: Option<&'a crate::jmap::UTCDate>,
 }
 
-/// Patch parameters for [`JmapChatClient::chat_contact_set`].
+/// Patch parameters for [`JmapChatClient::chat_contact_update`].
 ///
 /// All fields are optional; absent fields are omitted from the patch. For the
 /// nullable `display_name` field, use `Patch::Set(s)` to set and `Patch::Clear`
@@ -585,7 +584,67 @@ pub struct PushSubscriptionCreateInput<'a> {
 }
 
 // ---------------------------------------------------------------------------
-// Private helpers (accessible to child modules via super::)
+// SessionClient — session-bound client (eliminates &Session threading)
+// ---------------------------------------------------------------------------
+
+/// A [`crate::client::JmapChatClient`] bound to a JMAP session.
+///
+/// Obtain via [`crate::client::JmapChatClient::with_session`]. All JMAP Chat
+/// methods are available on this type without needing to pass `&Session` on
+/// every call.
+///
+/// ```rust,ignore
+/// let sc = client.with_session(&session);
+/// let chats = sc.chat_get(None, None).await?;
+/// ```
+pub struct SessionClient<'s> {
+    client: &'s crate::client::JmapChatClient,
+    session: &'s crate::jmap::Session,
+}
+
+impl crate::client::JmapChatClient {
+    /// Bind this client to a JMAP session, returning a [`SessionClient`] that
+    /// exposes all JMAP Chat methods without a `&Session` parameter on each call.
+    pub fn with_session<'s>(&'s self, session: &'s crate::jmap::Session) -> SessionClient<'s> {
+        SessionClient {
+            client: self,
+            session,
+        }
+    }
+}
+
+impl SessionClient<'_> {
+    /// Extract `(api_url, chat_account_id)` from the bound session.
+    ///
+    /// Returns `Err(InvalidSession)` if there is no primary account for
+    /// `urn:ietf:params:jmap:chat`.
+    pub(super) fn session_parts(&self) -> Result<(&str, &str), crate::error::ClientError> {
+        let api_url = self.session.api_url.as_str();
+        let account_id = self.session.chat_account_id().ok_or_else(|| {
+            crate::error::ClientError::InvalidSession(
+                "no primary account for urn:ietf:params:jmap:chat in Session.primaryAccounts",
+            )
+        })?;
+        Ok((api_url, account_id))
+    }
+
+    /// The JMAP API URL from the bound session.
+    pub(super) fn api_url(&self) -> &str {
+        self.session.api_url.as_str()
+    }
+
+    /// Forward a JMAP request to the underlying HTTP client.
+    pub(super) async fn call(
+        &self,
+        api_url: &str,
+        req: &crate::jmap::JmapRequest,
+    ) -> Result<crate::jmap::JmapResponse, crate::error::ClientError> {
+        self.client.call(api_url, req).await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Module-private helpers (accessible to child modules via super::)
 // ---------------------------------------------------------------------------
 
 /// The call-id embedded in every single-method JMAP request produced by
@@ -632,28 +691,5 @@ pub(super) fn resolve_client_id<'a>(id: Option<&'a str>, buf: &'a mut String) ->
             *buf = ulid::Ulid::new().to_string();
             buf.as_str()
         }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Private impl block — session helper, used by all child modules
-// ---------------------------------------------------------------------------
-
-impl crate::client::JmapChatClient {
-    /// Extract the API URL and chat account ID from a session.
-    ///
-    /// Returns `Err(InvalidSession)` if the session has no primary account for
-    /// `urn:ietf:params:jmap:chat`. All method wrappers call this as their first
-    /// step.
-    pub(super) fn session_parts(
-        session: &crate::jmap::Session,
-    ) -> Result<(&str, &str), crate::error::ClientError> {
-        let api_url = session.api_url.as_str();
-        let account_id = session.chat_account_id().ok_or_else(|| {
-            crate::error::ClientError::InvalidSession(
-                "no primary account for urn:ietf:params:jmap:chat in Session.primaryAccounts",
-            )
-        })?;
-        Ok((api_url, account_id))
     }
 }

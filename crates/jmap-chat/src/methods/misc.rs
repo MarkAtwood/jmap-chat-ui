@@ -3,17 +3,16 @@ use super::{
     SetResponse,
 };
 
-impl crate::client::JmapChatClient {
+impl super::SessionClient<'_> {
     /// Fetch ReadPosition objects by IDs (JMAP Chat §5 ReadPosition/get).
     ///
     /// If `ids` is `None`, returns all ReadPosition records for the account.
     /// The server creates one ReadPosition per Chat automatically.
     pub async fn read_position_get(
         &self,
-        session: &crate::jmap::Session,
         ids: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::ReadPosition>, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -31,13 +30,12 @@ impl crate::client::JmapChatClient {
     /// recomputes `Chat.unreadCount`.
     ///
     /// `create` and `destroy` are forbidden by the spec; only `update` is issued.
-    pub async fn read_position_set(
+    pub async fn read_position_update(
         &self,
-        session: &crate::jmap::Session,
         read_position_id: &str,
         last_read_message_id: &str,
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "update": {
@@ -55,9 +53,8 @@ impl crate::client::JmapChatClient {
     /// retrieves it.
     pub async fn presence_status_get(
         &self,
-        session: &crate::jmap::Session,
     ) -> Result<GetResponse<crate::types::PresenceStatus>, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": None::<&[&str]>,
@@ -72,11 +69,10 @@ impl crate::client::JmapChatClient {
     /// `max_changes` may be `None` to let the server choose the limit (RFC 8620 §5.2).
     pub async fn read_position_changes(
         &self,
-        session: &crate::jmap::Session,
         since_state: &str,
         max_changes: Option<u64>,
     ) -> Result<super::ChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceState": since_state,
@@ -94,39 +90,23 @@ impl crate::client::JmapChatClient {
     /// Only `update` is issued; `create` and `destroy` are forbidden by the spec.
     /// Fields absent from `patch` (i.e. `Patch::Keep` or `None`) are omitted from
     /// the patch and left unchanged server-side.
-    pub async fn presence_status_set(
+    pub async fn presence_status_update(
         &self,
-        session: &crate::jmap::Session,
         id: &str,
         patch: &PresenceStatusPatch<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut patch_map = serde_json::Map::new();
         if let Some(p) = &patch.presence {
-            patch_map.insert(
-                "presence".into(),
-                serde_json::to_value(p).map_err(crate::error::ClientError::Serialize)?,
-            );
+            patch_map.insert("presence".into(), serde_json::to_value(p)?);
         }
-        if let Some(entry) = patch
-            .status_text
-            .map_entry()
-            .map_err(crate::error::ClientError::Serialize)?
-        {
+        if let Some(entry) = patch.status_text.map_entry()? {
             patch_map.insert("statusText".into(), entry);
         }
-        if let Some(entry) = patch
-            .status_emoji
-            .map_entry()
-            .map_err(crate::error::ClientError::Serialize)?
-        {
+        if let Some(entry) = patch.status_emoji.map_entry()? {
             patch_map.insert("statusEmoji".into(), entry);
         }
-        if let Some(entry) = patch
-            .expires_at
-            .map_entry()
-            .map_err(crate::error::ClientError::Serialize)?
-        {
+        if let Some(entry) = patch.expires_at.map_entry()? {
             patch_map.insert("expiresAt".into(), entry);
         }
         if let Some(rs) = patch.receipt_sharing {
@@ -146,11 +126,10 @@ impl crate::client::JmapChatClient {
     /// `max_changes` may be `None` to let the server choose the limit (RFC 8620 §5.2).
     pub async fn presence_status_changes(
         &self,
-        session: &crate::jmap::Session,
         since_state: &str,
         max_changes: Option<u64>,
     ) -> Result<super::ChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceState": since_state,
@@ -179,10 +158,9 @@ impl crate::client::JmapChatClient {
     /// When `input.client_id` is `None`, a ULID is generated automatically.
     pub async fn push_subscription_set(
         &self,
-        session: &crate::jmap::Session,
         input: &PushSubscriptionCreateInput<'_>,
     ) -> Result<PushSubscriptionSetResponse, crate::error::ClientError> {
-        let api_url = session.api_url.as_str();
+        let api_url = self.api_url();
         let mut buf = String::new();
         let client_id = super::resolve_client_id(input.client_id, &mut buf);
         let mut create_obj = serde_json::json!({
@@ -213,10 +191,7 @@ impl crate::client::JmapChatClient {
             }
             let mut chat_push_map = serde_json::Map::new();
             for (account_id, config) in cp {
-                chat_push_map.insert(
-                    (*account_id).to_owned(),
-                    serde_json::to_value(config).map_err(crate::error::ClientError::Serialize)?,
-                );
+                chat_push_map.insert((*account_id).to_owned(), serde_json::to_value(config)?);
             }
             create_obj["chatPush"] = serde_json::Value::Object(chat_push_map);
         }

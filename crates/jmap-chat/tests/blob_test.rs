@@ -340,13 +340,8 @@ async fn blob_convert_returns_typed_response() {
     .expect("session must deserialize");
 
     let result: BlobConvertResponse = client
-        .blob_convert(
-            &session,
-            "original-blob-001",
-            "image/webp",
-            Some(200),
-            Some(200),
-        )
+        .with_session(&session)
+        .blob_convert("original-blob-001", "image/webp", Some(200), Some(200))
         .await
         .expect("blob_convert must succeed");
 

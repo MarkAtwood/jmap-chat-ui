@@ -511,6 +511,49 @@ pub enum ChatKind {
 }
 
 // ---------------------------------------------------------------------------
+// BodyType (Message.bodyType / MessageCreateInput.body_type)
+// ---------------------------------------------------------------------------
+
+/// MIME type for a message body.
+///
+/// The spec defines two well-known values (`text/plain`, `text/markdown`).
+/// `Unknown(String)` preserves any unrecognized value from a future spec
+/// version or a non-standard server extension.
+///
+/// Spec: draft-atwood-jmap-chat-00 §4.5
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq)]
+pub enum BodyType {
+    /// `"text/plain"` — unformatted UTF-8 text.
+    Plain,
+    /// `"text/markdown"` — CommonMark-formatted text.
+    Markdown,
+    /// Any unrecognized MIME type string, preserved as-is.
+    Unknown(String),
+}
+
+impl serde::Serialize for BodyType {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            BodyType::Plain => s.serialize_str("text/plain"),
+            BodyType::Markdown => s.serialize_str("text/markdown"),
+            BodyType::Unknown(v) => s.serialize_str(v),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for BodyType {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(d)?;
+        Ok(match raw.as_str() {
+            "text/plain" => BodyType::Plain,
+            "text/markdown" => BodyType::Markdown,
+            _ => BodyType::Unknown(raw),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
 // DeliveryReceipt (nested in Message.deliveryReceipts)
 // ---------------------------------------------------------------------------
 

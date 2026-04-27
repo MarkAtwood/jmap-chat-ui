@@ -3,17 +3,16 @@ use super::{
     QueryResponse, SetResponse,
 };
 
-impl crate::client::JmapChatClient {
+impl super::SessionClient<'_> {
     /// Fetch ChatContact objects by IDs (JMAP Chat §5 ChatContact/get).
     ///
     /// If `ids` is `None`, returns all ChatContacts for the account.
     pub async fn chat_contact_get(
         &self,
-        session: &crate::jmap::Session,
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::ChatContact>, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -27,11 +26,10 @@ impl crate::client::JmapChatClient {
     /// Fetch changes to ChatContact objects since `since_state` (RFC 8620 §5.2).
     pub async fn chat_contact_changes(
         &self,
-        session: &crate::jmap::Session,
         since_state: &str,
         max_changes: Option<u64>,
     ) -> Result<ChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceState": since_state,
@@ -48,22 +46,17 @@ impl crate::client::JmapChatClient {
     ///
     /// Supports `blocked` (Boolean) and `displayName` (nullable String).
     /// Create and destroy are not supported by spec; the server returns `forbidden`.
-    pub async fn chat_contact_set(
+    pub async fn chat_contact_update(
         &self,
-        session: &crate::jmap::Session,
         id: &str,
         patch: &ChatContactPatch<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut patch_map = serde_json::Map::new();
         if let Some(b) = patch.blocked {
             patch_map.insert("blocked".into(), b.into());
         }
-        if let Some(entry) = patch
-            .display_name
-            .map_entry()
-            .map_err(crate::error::ClientError::Serialize)?
-        {
+        if let Some(entry) = patch.display_name.map_entry()? {
             patch_map.insert("displayName".into(), entry);
         }
         let args = serde_json::json!({
@@ -81,10 +74,9 @@ impl crate::client::JmapChatClient {
     /// `"lastSeenAt"`, `"login"`, `"lastActiveAt"`.
     pub async fn chat_contact_query(
         &self,
-        session: &crate::jmap::Session,
         input: &ChatContactQueryInput<'_>,
     ) -> Result<QueryResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut filter = serde_json::Map::new();
         if let Some(b) = input.filter_blocked {
             filter.insert("blocked".into(), b.into());
@@ -122,11 +114,10 @@ impl crate::client::JmapChatClient {
     /// (RFC 8620 §5.6 / ChatContact/queryChanges).
     pub async fn chat_contact_query_changes(
         &self,
-        session: &crate::jmap::Session,
         since_query_state: &str,
         max_changes: Option<u64>,
     ) -> Result<QueryChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceQueryState": since_query_state,

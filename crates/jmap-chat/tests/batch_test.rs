@@ -103,7 +103,8 @@ async fn quota_get_returns_quota_list() {
     let session = test_session(&server.uri());
 
     let quotas = client
-        .quota_get(&session)
+        .with_session(&session)
+        .quota_get()
         .await
         .expect("quota_get must succeed");
 

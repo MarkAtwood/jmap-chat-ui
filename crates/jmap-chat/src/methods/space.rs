@@ -4,18 +4,17 @@ use super::{
     SpacePatch, SpaceQueryInput, SpaceUpdateMemberInput,
 };
 
-impl crate::client::JmapChatClient {
+impl super::SessionClient<'_> {
     /// Fetch Space objects by IDs (RFC 8620 §5.1 / JMAP Chat §Space/get).
     ///
     /// If `ids` is `None`, the server returns all Spaces for the account.
     /// Pass `properties: None` to return all fields.
     pub async fn space_get(
         &self,
-        session: &crate::jmap::Session,
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::Space>, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -32,11 +31,10 @@ impl crate::client::JmapChatClient {
     /// as `since_state` until the flag is false.
     pub async fn space_changes(
         &self,
-        session: &crate::jmap::Session,
         since_state: &str,
         max_changes: Option<u64>,
     ) -> Result<ChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceState": since_state,
@@ -55,7 +53,6 @@ impl crate::client::JmapChatClient {
     /// `ids` must be non-empty; the guard fires before any network call.
     pub async fn space_destroy(
         &self,
-        session: &crate::jmap::Session,
         ids: &[&str],
     ) -> Result<SetResponse, crate::error::ClientError> {
         if ids.is_empty() {
@@ -63,7 +60,7 @@ impl crate::client::JmapChatClient {
                 "space_destroy: ids may not be empty".into(),
             ));
         }
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "destroy": ids,
@@ -79,10 +76,9 @@ impl crate::client::JmapChatClient {
     /// an empty filter is sent as JSON `null`.
     pub async fn space_query(
         &self,
-        session: &crate::jmap::Session,
         input: &SpaceQueryInput<'_>,
     ) -> Result<QueryResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut filter = serde_json::Map::new();
         if let Some(n) = input.filter_name {
             filter.insert("name".into(), n.into());
@@ -117,11 +113,10 @@ impl crate::client::JmapChatClient {
     /// since the given state. `max_changes` may be `None`.
     pub async fn space_query_changes(
         &self,
-        session: &crate::jmap::Session,
         since_query_state: &str,
         max_changes: Option<u64>,
     ) -> Result<QueryChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceQueryState": since_query_state,
@@ -141,10 +136,9 @@ impl crate::client::JmapChatClient {
     /// `SetResponse.created`.
     pub async fn space_create(
         &self,
-        session: &crate::jmap::Session,
         input: &SpaceCreateInput<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut buf = String::new();
         let client_id = super::resolve_client_id(input.client_id, &mut buf);
         let mut create_obj = serde_json::json!({ "name": input.name });
@@ -169,10 +163,9 @@ impl crate::client::JmapChatClient {
     /// unrepresentable at the type level.
     pub async fn space_join(
         &self,
-        session: &crate::jmap::Session,
         input: &SpaceJoinInput<'_>,
     ) -> Result<SpaceJoinResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({ "accountId": account_id });
         match input {
             SpaceJoinInput::InviteCode(ic) => {
@@ -200,28 +193,19 @@ impl crate::client::JmapChatClient {
     /// iteration of this API.
     pub async fn space_update(
         &self,
-        session: &crate::jmap::Session,
         id: &str,
         patch: &SpacePatch<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut patch_map = serde_json::Map::new();
 
         if let Some(n) = patch.name {
             patch_map.insert("name".into(), n.into());
         }
-        if let Some(entry) = patch
-            .description
-            .map_entry()
-            .map_err(crate::error::ClientError::Serialize)?
-        {
+        if let Some(entry) = patch.description.map_entry()? {
             patch_map.insert("description".into(), entry);
         }
-        if let Some(entry) = patch
-            .icon_blob_id
-            .map_entry()
-            .map_err(crate::error::ClientError::Serialize)?
-        {
+        if let Some(entry) = patch.icon_blob_id.map_entry()? {
             patch_map.insert("iconBlobId".into(), entry);
         }
         if let Some(ip) = patch.is_public {
@@ -266,7 +250,7 @@ impl crate::client::JmapChatClient {
             if !um.is_empty() {
                 let arr: Vec<serde_json::Value> = um
                     .iter()
-                    .map(|u: &SpaceUpdateMemberInput<'_>| -> Result<serde_json::Value, serde_json::Error> {
+                    .map(|u: &SpaceUpdateMemberInput<'_>| -> Result<serde_json::Value, crate::error::ClientError> {
                         let mut obj = serde_json::json!({ "id": u.id });
                         if let Some(role_ids) = u.role_ids {
                             obj["roleIds"] = serde_json::Value::Array(
@@ -281,8 +265,7 @@ impl crate::client::JmapChatClient {
                         }
                         Ok(obj)
                     })
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(crate::error::ClientError::Serialize)?;
+                    .collect::<Result<Vec<_>, _>>()?;
                 patch_map.insert("updateMembers".into(), serde_json::Value::Array(arr));
             }
         }

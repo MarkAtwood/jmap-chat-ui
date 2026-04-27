@@ -34,7 +34,7 @@ pub struct BlobLookupResponse {
     pub not_found: Vec<String>,
 }
 
-impl crate::client::JmapChatClient {
+impl super::SessionClient<'_> {
     /// Reverse-lookup blobs: given a list of blob IDs and data type names,
     /// returns which objects of those types reference each blob.
     ///
@@ -50,11 +50,10 @@ impl crate::client::JmapChatClient {
     /// §6), to avoid information leakage.
     pub async fn blob_lookup(
         &self,
-        session: &crate::jmap::Session,
         blob_ids: &[&str],
         type_names: Option<&[&str]>,
     ) -> Result<BlobLookupResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": blob_ids,
@@ -86,7 +85,7 @@ pub struct BlobConvertResponse {
     pub content_type: String,
 }
 
-impl crate::client::JmapChatClient {
+impl super::SessionClient<'_> {
     /// Convert a blob to a different MIME type (JMAP-BLOBEXT §7 / blob2 capability).
     ///
     /// Typical use: request a thumbnail (`image/webp`) from an image blob without
@@ -97,13 +96,12 @@ impl crate::client::JmapChatClient {
     /// or clamp them. Pass `None` to omit both.
     pub async fn blob_convert(
         &self,
-        session: &crate::jmap::Session,
         from_blob_id: &str,
         content_type: &str,
         width: Option<u32>,
         height: Option<u32>,
     ) -> Result<BlobConvertResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "fromBlobId": from_blob_id,

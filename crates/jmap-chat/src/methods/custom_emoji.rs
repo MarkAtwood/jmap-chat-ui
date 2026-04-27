@@ -3,17 +3,16 @@ use super::{
     QueryChangesResponse, QueryResponse, SetResponse,
 };
 
-impl crate::client::JmapChatClient {
+impl super::SessionClient<'_> {
     /// Fetch CustomEmoji objects by IDs (JMAP Chat §4.16 CustomEmoji/get).
     ///
     /// If `ids` is `None`, returns all CustomEmoji objects for the account.
     pub async fn custom_emoji_get(
         &self,
-        session: &crate::jmap::Session,
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::CustomEmoji>, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -27,11 +26,10 @@ impl crate::client::JmapChatClient {
     /// Fetch changes to CustomEmoji objects since `since_state` (RFC 8620 §5.2 / CustomEmoji/changes).
     pub async fn custom_emoji_changes(
         &self,
-        session: &crate::jmap::Session,
         since_state: &str,
         max_changes: Option<u64>,
     ) -> Result<ChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceState": since_state,
@@ -44,17 +42,14 @@ impl crate::client::JmapChatClient {
         crate::client::extract_response(resp, call_id)
     }
 
-    /// Create or destroy CustomEmoji objects (RFC 8620 §5.3 / CustomEmoji/set).
+    /// Create a CustomEmoji (RFC 8620 §5.3 / CustomEmoji/set create).
     ///
-    /// `input` describes a single emoji to create. `destroy` is a list of
-    /// existing CustomEmoji IDs to delete.
-    pub async fn custom_emoji_set(
+    /// When `input.client_id` is `None`, a ULID is generated automatically.
+    pub async fn custom_emoji_create(
         &self,
-        session: &crate::jmap::Session,
         input: &CustomEmojiCreateInput<'_>,
-        destroy: &[&str],
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut create_obj = serde_json::json!({
             "name": input.name,
             "blobId": input.blob_id,
@@ -67,7 +62,28 @@ impl crate::client::JmapChatClient {
         let args = serde_json::json!({
             "accountId": account_id,
             "create": { client_id: create_obj },
-            "destroy": destroy,
+        });
+        let (call_id, req) = super::build_request("CustomEmoji/set", args);
+        let resp = self.call(api_url, &req).await?;
+        crate::client::extract_response(resp, call_id)
+    }
+
+    /// Destroy CustomEmoji objects (RFC 8620 §5.3 / CustomEmoji/set destroy).
+    ///
+    /// `ids` must be non-empty; the guard fires before any network call.
+    pub async fn custom_emoji_destroy(
+        &self,
+        ids: &[&str],
+    ) -> Result<SetResponse, crate::error::ClientError> {
+        if ids.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "custom_emoji_destroy: ids may not be empty".into(),
+            ));
+        }
+        let (api_url, account_id) = self.session_parts()?;
+        let args = serde_json::json!({
+            "accountId": account_id,
+            "destroy": ids,
         });
         let (call_id, req) = super::build_request("CustomEmoji/set", args);
         let resp = self.call(api_url, &req).await?;
@@ -77,10 +93,9 @@ impl crate::client::JmapChatClient {
     /// Query CustomEmoji IDs (RFC 8620 §5.5 / CustomEmoji/query).
     pub async fn custom_emoji_query(
         &self,
-        session: &crate::jmap::Session,
         input: &CustomEmojiQueryInput<'_>,
     ) -> Result<QueryResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
         });
@@ -102,11 +117,10 @@ impl crate::client::JmapChatClient {
     /// (RFC 8620 §5.6 / CustomEmoji/queryChanges).
     pub async fn custom_emoji_query_changes(
         &self,
-        session: &crate::jmap::Session,
         since_query_state: &str,
         max_changes: Option<u64>,
     ) -> Result<QueryChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceQueryState": since_query_state,

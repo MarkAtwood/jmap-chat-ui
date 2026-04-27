@@ -3,14 +3,13 @@ use super::{
     QueryChangesResponse, QueryResponse, ReactionChange, SetResponse,
 };
 
-impl crate::client::JmapChatClient {
+impl super::SessionClient<'_> {
     /// Fetch Message objects by IDs (RFC 8620 §5.1 / JMAP Chat §5 Message/get).
     ///
     /// `ids` is required (non-empty); fetching all messages is impractical.
     /// Pass `properties: None` to return all fields.
     pub async fn message_get(
         &self,
-        session: &crate::jmap::Session,
         ids: &[&str],
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::Message>, crate::error::ClientError> {
@@ -19,7 +18,7 @@ impl crate::client::JmapChatClient {
                 "message_get: ids may not be empty".into(),
             ));
         }
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -41,7 +40,6 @@ impl crate::client::JmapChatClient {
     /// chronologically should set `sort_ascending:true` or reverse after fetching.
     pub async fn message_query(
         &self,
-        session: &crate::jmap::Session,
         input: &MessageQueryInput<'_>,
     ) -> Result<QueryResponse, crate::error::ClientError> {
         match (input.chat_id, input.has_mention) {
@@ -58,7 +56,7 @@ impl crate::client::JmapChatClient {
             }
             (Some(_), _) => {} // chat_id present and non-empty
         }
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut filter = serde_json::Map::new();
         if let Some(id) = input.chat_id {
             filter.insert("chatId".into(), id.into());
@@ -105,11 +103,10 @@ impl crate::client::JmapChatClient {
     /// Fetch changes to Message objects since `since_state` (RFC 8620 §5.2 / Message/changes).
     pub async fn message_changes(
         &self,
-        session: &crate::jmap::Session,
         since_state: &str,
         max_changes: Option<u64>,
     ) -> Result<ChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceState": since_state,
@@ -129,16 +126,15 @@ impl crate::client::JmapChatClient {
     /// `SetResponse.created`.
     pub async fn message_create(
         &self,
-        session: &crate::jmap::Session,
         input: &MessageCreateInput<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut buf = String::new();
         let client_id = super::resolve_client_id(input.client_id, &mut buf);
         let mut create_obj = serde_json::json!({
             "chatId": input.chat_id,
             "body": input.body,
-            "bodyType": input.body_type,
+            "bodyType": serde_json::to_value(&input.body_type)?,
             "sentAt": input.sent_at.as_str(),
         });
         if let Some(rt) = input.reply_to {
@@ -178,17 +174,16 @@ impl crate::client::JmapChatClient {
     /// object in `updated`.
     pub async fn message_update(
         &self,
-        session: &crate::jmap::Session,
         id: &str,
         patch: &MessagePatch<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut patch_map = serde_json::Map::new();
         if let Some(b) = patch.body {
             patch_map.insert("body".into(), b.into());
         }
-        if let Some(bt) = patch.body_type {
-            patch_map.insert("bodyType".into(), bt.into());
+        if let Some(bt) = &patch.body_type {
+            patch_map.insert("bodyType".into(), serde_json::to_value(bt)?);
         }
         if let Some(ra) = patch.read_at {
             patch_map.insert("readAt".into(), ra.as_str().into());
@@ -234,7 +229,6 @@ impl crate::client::JmapChatClient {
     /// `ids` must be non-empty; the guard fires before any network call.
     pub async fn message_destroy(
         &self,
-        session: &crate::jmap::Session,
         ids: &[&str],
     ) -> Result<SetResponse, crate::error::ClientError> {
         if ids.is_empty() {
@@ -242,7 +236,7 @@ impl crate::client::JmapChatClient {
                 "message_destroy: ids may not be empty".into(),
             ));
         }
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "destroy": ids,
@@ -259,11 +253,10 @@ impl crate::client::JmapChatClient {
     /// result set since the given state. `max_changes` may be `None`.
     pub async fn message_query_changes(
         &self,
-        session: &crate::jmap::Session,
         since_query_state: &str,
         max_changes: Option<u64>,
     ) -> Result<QueryChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceQueryState": since_query_state,

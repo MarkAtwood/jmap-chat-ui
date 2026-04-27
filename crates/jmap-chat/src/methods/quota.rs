@@ -38,7 +38,7 @@ pub struct Quota {
     pub description: Option<String>,
 }
 
-impl crate::client::JmapChatClient {
+impl super::SessionClient<'_> {
     /// Fetch all Quota objects for the account (RFC 8621 §2.1 Quota/get).
     ///
     /// Returns all quota records for the primary JMAP Chat account.  Each
@@ -50,11 +50,8 @@ impl crate::client::JmapChatClient {
     /// no primary JMAP Chat account.
     ///
     /// Spec: RFC 8621 §2
-    pub async fn quota_get(
-        &self,
-        session: &crate::jmap::Session,
-    ) -> Result<Vec<Quota>, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+    pub async fn quota_get(&self) -> Result<Vec<Quota>, crate::error::ClientError> {
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": serde_json::Value::Null,

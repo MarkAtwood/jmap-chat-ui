@@ -405,13 +405,13 @@ pub async fn run(
                         let sent_at =
                             jmap_chat::jmap::UTCDate::from_trusted(now_rfc3339());
                         match client
+                            .with_session(&session)
                             .message_create(
-                                &session,
                                 &MessageCreateInput {
                                     client_id: Some(client_id.as_str()),
                                     chat_id: &chat_id,
                                     body: &body,
-                                    body_type: "text/plain",
+                                    body_type: jmap_chat::types::BodyType::Plain,
                                     sent_at: &sent_at,
                                     reply_to: None,
                                 },
@@ -468,7 +468,8 @@ pub async fn run(
                     Some(AppCommand::MarkRead { chat_id, message_id }) => {
                         if let Some(rp_id) = read_positions.get(&chat_id) {
                             if let Err(e) = client
-                                .read_position_set(&session, rp_id, &message_id)
+                                .with_session(&session)
+                                .read_position_update(rp_id, &message_id)
                                 .await
                             {
                                 send_event(
@@ -491,8 +492,8 @@ pub async fn run(
                                     read_positions = new_map;
                                     if let Some(rp_id) = read_positions.get(&chat_id) {
                                         if let Err(e) = client
-                                            .read_position_set(
-                                                &session,
+                                            .with_session(&session)
+                                            .read_position_update(
                                                 rp_id,
                                                 &message_id,
                                             )
@@ -608,14 +609,12 @@ async fn load_chats(
     let mut position = 0u64;
     loop {
         let query = client
-            .chat_query(
-                session,
-                &ChatQueryInput {
-                    limit: Some(PAGE),
-                    position: Some(position),
-                    ..Default::default()
-                },
-            )
+            .with_session(session)
+            .chat_query(&ChatQueryInput {
+                limit: Some(PAGE),
+                position: Some(position),
+                ..Default::default()
+            })
             .await?;
         let fetched = query.ids.len() as u64;
         let total = query.total;
@@ -629,7 +628,10 @@ async fn load_chats(
     // Always call chat_get even when ids is empty, so we get the current state
     // string and can use Chat/changes for future delta sync.
     let id_refs: Vec<&str> = all_ids.iter().map(String::as_str).collect();
-    let resp = client.chat_get(session, Some(&id_refs), None).await?;
+    let resp = client
+        .with_session(session)
+        .chat_get(Some(&id_refs), None)
+        .await?;
     let state = resp.state.clone();
     send_event(tx, ctx, AppEvent::ChatsLoaded(resp.list));
     Ok(state)
@@ -647,21 +649,23 @@ async fn load_messages_for_chat(
     ctx: &egui::Context,
 ) -> Result<Option<String>, ClientError> {
     let query = client
-        .message_query(
-            session,
-            &MessageQueryInput {
-                chat_id: Some(chat_id),
-                limit: Some(100),
-                ..Default::default()
-            },
-        )
+        .with_session(session)
+        .message_query(&MessageQueryInput {
+            chat_id: Some(chat_id),
+            limit: Some(100),
+            ..Default::default()
+        })
         .await?;
 
     let mut messages = if query.ids.is_empty() {
         Vec::new()
     } else {
         let id_refs: Vec<&str> = query.ids.iter().map(String::as_str).collect();
-        client.message_get(session, &id_refs, None).await?.list
+        client
+            .with_session(session)
+            .message_get(&id_refs, None)
+            .await?
+            .list
     };
 
     // message_query returns IDs newest-first; after /get the order is
@@ -694,7 +698,7 @@ async fn load_read_positions(
     client: Arc<JmapChatClient>,
     session: &jmap_chat::jmap::Session,
 ) -> Result<HashMap<String, String>, ClientError> {
-    let resp = client.read_position_get(session, None).await?;
+    let resp = client.with_session(session).read_position_get(None).await?;
     let mut map = HashMap::with_capacity(resp.list.len());
     for rp in resp.list {
         map.insert(rp.chat_id.to_string(), rp.id.to_string());
@@ -728,7 +732,11 @@ async fn try_mark_read(
 ) {
     if let Some(msg_id) = last_msg_id {
         if let Some(rp_id) = read_positions.get(chat_id) {
-            if let Err(e) = client.read_position_set(session, rp_id, &msg_id).await {
+            if let Err(e) = client
+                .with_session(session)
+                .read_position_update(rp_id, &msg_id)
+                .await
+            {
                 send_event(
                     tx,
                     ctx,
@@ -959,7 +967,11 @@ async fn chat_delta_sync(
         Some(s) => s,
     };
 
-    let changes = match client.chat_changes(session, state, Some(500)).await {
+    let changes = match client
+        .with_session(session)
+        .chat_changes(state, Some(500))
+        .await
+    {
         Ok(c) => c,
         Err(ClientError::MethodError { ref error_type, .. })
             if error_type == "cannotCalculateChanges" =>
@@ -992,7 +1004,11 @@ async fn chat_delta_sync(
     let updated_chats = if id_refs.is_empty() {
         Vec::new()
     } else {
-        match client.chat_get(session, Some(&id_refs), None).await {
+        match client
+            .with_session(session)
+            .chat_get(Some(&id_refs), None)
+            .await
+        {
             Ok(resp) => resp.list,
             Err(e) => {
                 send_event(

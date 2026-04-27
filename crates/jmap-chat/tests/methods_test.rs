@@ -67,7 +67,8 @@ async fn chat_get_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_get(&test_session(&api_url), None, None)
+        .with_session(&test_session(&api_url))
+        .chat_get(None, None)
         .await
         .expect("chat_get must succeed");
 
@@ -105,17 +106,15 @@ async fn message_create_returns_typed_response() {
     let api_url = format!("{}/api", server.uri());
     let sent_at = jmap_chat::jmap::UTCDate::from_trusted("2024-01-02T12:00:00Z");
     let result = client
-        .message_create(
-            &test_session(&api_url),
-            &MessageCreateInput {
-                client_id: Some("client-ulid-001"),
-                chat_id: "01HV5Z6QKWJ7N3P8R2X4YTMD3G",
-                body: "Hello, world!",
-                body_type: "text/plain",
-                sent_at: &sent_at,
-                reply_to: None,
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .message_create(&MessageCreateInput {
+            client_id: Some("client-ulid-001"),
+            chat_id: "01HV5Z6QKWJ7N3P8R2X4YTMD3G",
+            body: "Hello, world!",
+            body_type: jmap_chat::types::BodyType::Plain,
+            sent_at: &sent_at,
+            reply_to: None,
+        })
         .await
         .expect("message_create must succeed");
 
@@ -137,13 +136,13 @@ async fn message_create_returns_typed_response() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 3: read_position_set — happy path
+// Test 3: read_position_update — happy path
 // ---------------------------------------------------------------------------
 
 /// Oracle: RFC 8620 §5.3 — ReadPosition/set response shape: newState, updated map.
 /// Fixture hand-written from §5.3 /set response definition.
 #[tokio::test]
-async fn read_position_set_returns_typed_response() {
+async fn read_position_update_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -158,13 +157,10 @@ async fn read_position_set_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .read_position_set(
-            &test_session(&api_url),
-            "01HV5Z6QKWJ7N3P8R2X4RPOS01",
-            "01HV5Z6QKWJ7N3P8R2X4YTMD42",
-        )
+        .with_session(&test_session(&api_url))
+        .read_position_update("01HV5Z6QKWJ7N3P8R2X4RPOS01", "01HV5Z6QKWJ7N3P8R2X4YTMD42")
         .await
-        .expect("read_position_set must succeed");
+        .expect("read_position_update must succeed");
 
     // Oracle: RFC 8620 §5.3 — newState is present
     assert_eq!(result.new_state, "state-rp-001");
@@ -203,7 +199,8 @@ async fn chat_get_method_error_returns_client_error() {
 
     let api_url = format!("{}/api", server.uri());
     let err = client
-        .chat_get(&test_session(&api_url), None, None)
+        .with_session(&test_session(&api_url))
+        .chat_get(None, None)
         .await
         .expect_err("error invocation must return Err");
 
@@ -237,10 +234,8 @@ async fn message_query_rejects_invalid_filter() {
 
     // (a) both None
     let err_none = client
-        .message_query(
-            &test_session("http://127.0.0.1:1/api"),
-            &MessageQueryInput::default(),
-        )
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .message_query(&MessageQueryInput::default())
         .await
         .expect_err("no filter must be rejected");
     assert!(
@@ -250,13 +245,11 @@ async fn message_query_rejects_invalid_filter() {
 
     // (b) has_mention=Some(false) — not a valid anchor
     let err_false = client
-        .message_query(
-            &test_session("http://127.0.0.1:1/api"),
-            &MessageQueryInput {
-                has_mention: Some(false),
-                ..Default::default()
-            },
-        )
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .message_query(&MessageQueryInput {
+            has_mention: Some(false),
+            ..Default::default()
+        })
         .await
         .expect_err("has_mention=false without chat_id must be rejected");
     assert!(
@@ -280,7 +273,8 @@ async fn message_get_rejects_empty_ids() {
         .expect("client construction must succeed");
 
     let err = client
-        .message_get(&test_session("http://127.0.0.1:1/api"), &[], None)
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .message_get(&[], None)
         .await
         .expect_err("empty ids must be rejected");
 
@@ -349,13 +343,11 @@ async fn chat_query_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_query(
-            &test_session(&api_url),
-            &ChatQueryInput {
-                limit: Some(50),
-                ..Default::default()
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .chat_query(&ChatQueryInput {
+            limit: Some(50),
+            ..Default::default()
+        })
         .await
         .expect("chat_query must succeed");
 
@@ -392,7 +384,8 @@ async fn chat_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_changes(&test_session(&api_url), "state-chat-000", None)
+        .with_session(&test_session(&api_url))
+        .chat_changes("state-chat-000", None)
         .await
         .expect("chat_changes must succeed");
 
@@ -423,11 +416,8 @@ async fn message_get_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .message_get(
-            &test_session(&api_url),
-            &["01HV5Z6QKWJ7N3P8R2X4YTMD42"],
-            None,
-        )
+        .with_session(&test_session(&api_url))
+        .message_get(&["01HV5Z6QKWJ7N3P8R2X4YTMD42"], None)
         .await
         .expect("message_get must succeed");
 
@@ -469,13 +459,11 @@ async fn message_query_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .message_query(
-            &test_session(&api_url),
-            &MessageQueryInput {
-                chat_id: Some("01HV5Z6QKWJ7N3P8R2X4YTMD3G"),
-                ..Default::default()
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .message_query(&MessageQueryInput {
+            chat_id: Some("01HV5Z6QKWJ7N3P8R2X4YTMD3G"),
+            ..Default::default()
+        })
         .await
         .expect("message_query must succeed");
 
@@ -509,7 +497,8 @@ async fn message_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .message_changes(&test_session(&api_url), "state-msg-000", None)
+        .with_session(&test_session(&api_url))
+        .message_changes("state-msg-000", None)
         .await
         .expect("message_changes must succeed");
 
@@ -550,7 +539,8 @@ async fn chat_contact_get_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_contact_get(&test_session(&api_url), None, None)
+        .with_session(&test_session(&api_url))
+        .chat_contact_get(None, None)
         .await
         .expect("chat_contact_get must succeed");
 
@@ -593,7 +583,8 @@ async fn read_position_get_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .read_position_get(&test_session(&api_url), None)
+        .with_session(&test_session(&api_url))
+        .read_position_get(None)
         .await
         .expect("read_position_get must succeed");
 
@@ -627,7 +618,8 @@ async fn presence_status_get_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .presence_status_get(&test_session(&api_url))
+        .with_session(&test_session(&api_url))
+        .presence_status_get()
         .await
         .expect("presence_status_get must succeed");
 
@@ -668,7 +660,8 @@ async fn read_position_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .read_position_changes(&test_session(&api_url), "rp-state-001", None)
+        .with_session(&test_session(&api_url))
+        .read_position_changes("rp-state-001", None)
         .await
         .expect("read_position_changes must succeed");
 
@@ -678,13 +671,13 @@ async fn read_position_changes_returns_typed_response() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 17: presence_status_set — happy path
+// Test 17: presence_status_update — happy path
 // ---------------------------------------------------------------------------
 
 /// Oracle: RFC 8620 §5.3 — PresenceStatus/set response shape: newState, updated map.
 /// Fixture hand-written from §5.3 /set response definition.
 #[tokio::test]
-async fn presence_status_set_returns_typed_response() {
+async fn presence_status_update_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -699,8 +692,8 @@ async fn presence_status_set_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .presence_status_set(
-            &test_session(&api_url),
+        .with_session(&test_session(&api_url))
+        .presence_status_update(
             "01HV5Z6QKWJ7N3P8R2X4YTMD99",
             &PresenceStatusPatch {
                 presence: Some(OwnerPresence::Away),
@@ -708,7 +701,7 @@ async fn presence_status_set_returns_typed_response() {
             },
         )
         .await
-        .expect("presence_status_set must succeed");
+        .expect("presence_status_update must succeed");
 
     // Oracle: RFC 8620 §5.3 — newState is present
     assert_eq!(result.new_state, "ps-state-002");
@@ -737,7 +730,8 @@ async fn presence_status_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .presence_status_changes(&test_session(&api_url), "ps-state-001", None)
+        .with_session(&test_session(&api_url))
+        .presence_status_changes("ps-state-001", None)
         .await
         .expect("presence_status_changes must succeed");
 
@@ -768,7 +762,8 @@ async fn custom_emoji_get_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .custom_emoji_get(&test_session(&api_url), None, None)
+        .with_session(&test_session(&api_url))
+        .custom_emoji_get(None, None)
         .await
         .expect("custom_emoji_get must succeed");
 
@@ -799,7 +794,8 @@ async fn custom_emoji_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .custom_emoji_changes(&test_session(&api_url), "emoji-state-000", None)
+        .with_session(&test_session(&api_url))
+        .custom_emoji_changes("emoji-state-000", None)
         .await
         .expect("custom_emoji_changes must succeed");
 
@@ -810,13 +806,13 @@ async fn custom_emoji_changes_returns_typed_response() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 21: custom_emoji_set — happy path
+// Test 21: custom_emoji_create — happy path
 // ---------------------------------------------------------------------------
 
 /// Oracle: RFC 8620 §5.3 — CustomEmoji/set response shape: newState, created map.
 /// Fixture hand-written from §5.3 /set response definition.
 #[tokio::test]
-async fn custom_emoji_set_returns_typed_response() {
+async fn custom_emoji_create_returns_typed_response() {
     use jmap_chat::methods::CustomEmojiCreateInput;
 
     let server = MockServer::start().await;
@@ -839,9 +835,10 @@ async fn custom_emoji_set_returns_typed_response() {
         space_id: None,
     };
     let result = client
-        .custom_emoji_set(&test_session(&api_url), &input, &[])
+        .with_session(&test_session(&api_url))
+        .custom_emoji_create(&input)
         .await
-        .expect("custom_emoji_set must succeed");
+        .expect("custom_emoji_create must succeed");
 
     // Oracle: RFC 8620 §5.3 — created map is keyed by client_id
     assert!(result.created.is_some(), "created map must be present");
@@ -881,7 +878,8 @@ async fn custom_emoji_query_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .custom_emoji_query(&test_session(&api_url), &CustomEmojiQueryInput::default())
+        .with_session(&test_session(&api_url))
+        .custom_emoji_query(&CustomEmojiQueryInput::default())
         .await
         .expect("custom_emoji_query must succeed");
 
@@ -919,7 +917,8 @@ async fn custom_emoji_query_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .custom_emoji_query_changes(&test_session(&api_url), "emoji-qs-000", None)
+        .with_session(&test_session(&api_url))
+        .custom_emoji_query_changes("emoji-qs-000", None)
         .await
         .expect("custom_emoji_query_changes must succeed");
 
@@ -951,7 +950,8 @@ async fn space_ban_get_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_ban_get(&test_session(&api_url), None, None)
+        .with_session(&test_session(&api_url))
+        .space_ban_get(None, None)
         .await
         .expect("space_ban_get must succeed");
 
@@ -964,13 +964,13 @@ async fn space_ban_get_returns_typed_response() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 25: space_ban_set — happy path
+// Test 25: space_ban_create — happy path
 // ---------------------------------------------------------------------------
 
 /// Oracle: RFC 8620 §5.3 — SpaceBan/set response shape: newState, created map.
 /// Fixture hand-written from §5.3 /set response definition.
 #[tokio::test]
-async fn space_ban_set_returns_typed_response() {
+async fn space_ban_create_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -992,9 +992,10 @@ async fn space_ban_set_returns_typed_response() {
         expires_at: None,
     };
     let result = client
-        .space_ban_set(&test_session(&api_url), &input, &[])
+        .with_session(&test_session(&api_url))
+        .space_ban_create(&input)
         .await
-        .expect("space_ban_set must succeed");
+        .expect("space_ban_create must succeed");
 
     // Oracle: RFC 8620 §5.3 — created map is present
     assert!(result.created.is_some(), "created map must be present");
@@ -1023,7 +1024,8 @@ async fn space_ban_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_ban_changes(&test_session(&api_url), "ban-state-000", None)
+        .with_session(&test_session(&api_url))
+        .space_ban_changes("ban-state-000", None)
         .await
         .expect("space_ban_changes must succeed");
 
@@ -1055,7 +1057,8 @@ async fn space_invite_get_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_invite_get(&test_session(&api_url), None, None)
+        .with_session(&test_session(&api_url))
+        .space_invite_get(None, None)
         .await
         .expect("space_invite_get must succeed");
 
@@ -1086,7 +1089,8 @@ async fn space_invite_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_invite_changes(&test_session(&api_url), "invite-state-000", None)
+        .with_session(&test_session(&api_url))
+        .space_invite_changes("invite-state-000", None)
         .await
         .expect("space_invite_changes must succeed");
 
@@ -1096,13 +1100,13 @@ async fn space_invite_changes_returns_typed_response() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 28: space_invite_set — happy path
+// Test 28: space_invite_create — happy path
 // ---------------------------------------------------------------------------
 
 /// Oracle: RFC 8620 §5.3 — SpaceInvite/set response shape: newState, created map.
 /// Fixture hand-written from §5.3 /set response definition.
 #[tokio::test]
-async fn space_invite_set_returns_typed_response() {
+async fn space_invite_create_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -1124,9 +1128,10 @@ async fn space_invite_set_returns_typed_response() {
         max_uses: Some(10),
     };
     let result = client
-        .space_invite_set(&test_session(&api_url), Some(&input), &[])
+        .with_session(&test_session(&api_url))
+        .space_invite_create(&input)
         .await
-        .expect("space_invite_set must succeed");
+        .expect("space_invite_create must succeed");
 
     // Oracle: RFC 8620 §5.3 — created map is present
     assert!(result.created.is_some(), "created map must be present");
@@ -1168,8 +1173,8 @@ async fn message_update_body_edit_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
+        .with_session(&test_session(&api_url))
         .message_update(
-            &test_session(&api_url),
             "01HV5Z6QKWJ7N3P8R2X4YTMD42",
             &MessagePatch {
                 body: Some("Hello, edited!"),
@@ -1233,8 +1238,8 @@ async fn message_update_add_reaction_sends_correct_patch() {
         sent_at: &sent_at,
     };
     let result = client
+        .with_session(&test_session(&api_url))
         .message_update(
-            &test_session(&api_url),
             "01HV5Z6QKWJ7N3P8R2X4YTMD42",
             &MessagePatch {
                 reaction_changes: Some(&[reaction]),
@@ -1279,7 +1284,8 @@ async fn message_destroy_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .message_destroy(&test_session(&api_url), &["01HV5Z6QKWJ7N3P8R2X4YTMD42"])
+        .with_session(&test_session(&api_url))
+        .message_destroy(&["01HV5Z6QKWJ7N3P8R2X4YTMD42"])
         .await
         .expect("message_destroy must succeed");
 
@@ -1301,7 +1307,8 @@ async fn message_destroy_rejects_empty_ids() {
         .expect("client construction must succeed");
 
     let err = client
-        .message_destroy(&test_session("http://127.0.0.1:1/api"), &[])
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .message_destroy(&[])
         .await
         .expect_err("empty ids must be rejected");
 
@@ -1334,7 +1341,8 @@ async fn message_query_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .message_query_changes(&test_session(&api_url), "msg-qs-000", None)
+        .with_session(&test_session(&api_url))
+        .message_query_changes("msg-qs-000", None)
         .await
         .expect("message_query_changes must succeed");
 
@@ -1383,14 +1391,12 @@ async fn message_query_with_text_filter_sends_correct_body() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .message_query(
-            &test_session(&api_url),
-            &MessageQueryInput {
-                chat_id: Some("01HV5Z6QKWJ7N3P8R2X4YTMD3G"),
-                text: Some("hello"),
-                ..Default::default()
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .message_query(&MessageQueryInput {
+            chat_id: Some("01HV5Z6QKWJ7N3P8R2X4YTMD3G"),
+            text: Some("hello"),
+            ..Default::default()
+        })
         .await
         .expect("message_query with text filter must succeed");
 
@@ -1439,13 +1445,11 @@ async fn chat_create_direct_variant_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_create(
-            &test_session(&api_url),
-            &ChatCreateInput::Direct {
-                client_id: Some("client-direct-001"),
-                contact_id: "contact-id-001",
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .chat_create(&ChatCreateInput::Direct {
+            client_id: Some("client-direct-001"),
+            contact_id: "contact-id-001",
+        })
         .await
         .expect("chat_create direct must succeed");
 
@@ -1501,17 +1505,15 @@ async fn chat_create_group_variant_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_create(
-            &test_session(&api_url),
-            &ChatCreateInput::Group {
-                client_id: Some("client-group-001"),
-                name: "Test Group",
-                member_ids: &["contact-id-002"],
-                description: None,
-                avatar_blob_id: None,
-                message_expiry_seconds: None,
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .chat_create(&ChatCreateInput::Group {
+            client_id: Some("client-group-001"),
+            name: "Test Group",
+            member_ids: &["contact-id-002"],
+            description: None,
+            avatar_blob_id: None,
+            message_expiry_seconds: None,
+        })
         .await
         .expect("chat_create group must succeed");
 
@@ -1563,8 +1565,8 @@ async fn chat_update_muted_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
+        .with_session(&test_session(&api_url))
         .chat_update(
-            &test_session(&api_url),
             "01HV5Z6QKWJ7N3P8R2X4YTMDAA",
             &ChatPatch {
                 muted: Some(true),
@@ -1610,7 +1612,8 @@ async fn chat_typing_sends_correct_args() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_typing(&test_session(&api_url), "01HV5Z6QKWJ7N3P8R2X4YTMDAA", true)
+        .with_session(&test_session(&api_url))
+        .chat_typing("01HV5Z6QKWJ7N3P8R2X4YTMDAA", true)
         .await
         .expect("chat_typing must succeed");
 
@@ -1630,7 +1633,8 @@ async fn chat_typing_rejects_empty_chat_id() {
         .expect("client construction must succeed");
 
     let result = client
-        .chat_typing(&test_session("http://127.0.0.1:1/api"), "", true)
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .chat_typing("", true)
         .await;
 
     assert!(
@@ -1671,7 +1675,8 @@ async fn chat_query_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_query_changes(&test_session(&api_url), "chat-qs-000", None)
+        .with_session(&test_session(&api_url))
+        .chat_query_changes("chat-qs-000", None)
         .await
         .expect("chat_query_changes must succeed");
 
@@ -1722,8 +1727,8 @@ async fn chat_update_with_add_members_role_serializes_correctly() {
         role: Some(jmap_chat::types::ChatMemberRole::Admin),
     }];
     let result = client
+        .with_session(&test_session(&api_url))
         .chat_update(
-            &test_session(&api_url),
             "01HV5Z6QKWJ7N3P8R2X4YTMDAA",
             &ChatPatch {
                 add_members: Some(&members),
@@ -1769,7 +1774,8 @@ async fn chat_contact_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_contact_changes(&test_session(&api_url), "contact-state-000", None)
+        .with_session(&test_session(&api_url))
+        .chat_contact_changes("contact-state-000", None)
         .await
         .expect("chat_contact_changes must succeed");
 
@@ -1782,7 +1788,7 @@ async fn chat_contact_changes_returns_typed_response() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 44: chat_contact_set — update blocked flag
+// Test 44: chat_contact_update — update blocked flag
 // ---------------------------------------------------------------------------
 
 /// Oracle: JMAP Chat §ChatContact/set — update patch must contain only the
@@ -1791,7 +1797,7 @@ async fn chat_contact_changes_returns_typed_response() {
 ///
 /// Body matcher: verifies patch contains only {"blocked": true}, no displayName key.
 #[tokio::test]
-async fn chat_contact_set_blocked_returns_typed_response() {
+async fn chat_contact_update_blocked_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
@@ -1815,8 +1821,8 @@ async fn chat_contact_set_blocked_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_contact_set(
-            &test_session(&api_url),
+        .with_session(&test_session(&api_url))
+        .chat_contact_update(
             "01HV5Z6QKWJ7N3P8R2X4YTMDCC",
             &ChatContactPatch {
                 blocked: Some(true),
@@ -1824,7 +1830,7 @@ async fn chat_contact_set_blocked_returns_typed_response() {
             },
         )
         .await
-        .expect("chat_contact_set must succeed");
+        .expect("chat_contact_update must succeed");
 
     // Oracle: chat_contact_set_response.json — newState updated, id present in updated map
     assert_eq!(result.new_state, "contact-state-002");
@@ -1871,17 +1877,15 @@ async fn chat_contact_query_filters_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_contact_query(
-            &test_session(&api_url),
-            &ChatContactQueryInput {
-                filter_blocked: Some(false),
-                filter_presence: None,
-                position: None,
-                limit: None,
-                sort_property: Some("lastSeenAt"),
-                sort_ascending: Some(true),
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .chat_contact_query(&ChatContactQueryInput {
+            filter_blocked: Some(false),
+            filter_presence: None,
+            position: None,
+            limit: None,
+            sort_property: Some("lastSeenAt"),
+            sort_ascending: Some(true),
+        })
         .await
         .expect("chat_contact_query must succeed");
 
@@ -1924,7 +1928,8 @@ async fn chat_contact_query_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_contact_query_changes(&test_session(&api_url), "contact-qs-000", None)
+        .with_session(&test_session(&api_url))
+        .chat_contact_query_changes("contact-qs-000", None)
         .await
         .expect("chat_contact_query_changes must succeed");
 
@@ -1956,11 +1961,8 @@ async fn space_get_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_get(
-            &test_session(&api_url),
-            Some(&["01HV5Z6QKWJ7N3P8R2X4YTMDSP"]),
-            None,
-        )
+        .with_session(&test_session(&api_url))
+        .space_get(Some(&["01HV5Z6QKWJ7N3P8R2X4YTMDSP"]), None)
         .await
         .expect("space_get must succeed");
 
@@ -2005,7 +2007,8 @@ async fn space_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_changes(&test_session(&api_url), "state-space-000", None)
+        .with_session(&test_session(&api_url))
+        .space_changes("state-space-000", None)
         .await
         .expect("space_changes must succeed");
 
@@ -2053,15 +2056,13 @@ async fn space_create_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_create(
-            &test_session(&api_url),
-            &SpaceCreateInput {
-                client_id: Some("client-space-001"),
-                name: "Engineering",
-                description: None,
-                icon_blob_id: None,
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .space_create(&SpaceCreateInput {
+            client_id: Some("client-space-001"),
+            name: "Engineering",
+            description: None,
+            icon_blob_id: None,
+        })
         .await
         .expect("space_create must succeed");
 
@@ -2104,8 +2105,8 @@ async fn space_update_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
+        .with_session(&test_session(&api_url))
         .space_update(
-            &test_session(&api_url),
             "01HV5Z6QKWJ7N3P8R2X4YTMDSP",
             &SpacePatch {
                 name: Some("Engineering Team"),
@@ -2150,7 +2151,8 @@ async fn space_destroy_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_destroy(&test_session(&api_url), &["01HV5Z6QKWJ7N3P8R2X4YTMDSP"])
+        .with_session(&test_session(&api_url))
+        .space_destroy(&["01HV5Z6QKWJ7N3P8R2X4YTMDSP"])
         .await
         .expect("space_set_destroy must succeed");
 
@@ -2192,15 +2194,13 @@ async fn space_query_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_query(
-            &test_session(&api_url),
-            &SpaceQueryInput {
-                filter_name: None,
-                filter_is_public: Some(true),
-                position: Some(0),
-                limit: Some(10),
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .space_query(&SpaceQueryInput {
+            filter_name: None,
+            filter_is_public: Some(true),
+            position: Some(0),
+            limit: Some(10),
+        })
         .await
         .expect("space_query must succeed");
 
@@ -2241,7 +2241,8 @@ async fn space_query_changes_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_query_changes(&test_session(&api_url), "space-qs-000", None)
+        .with_session(&test_session(&api_url))
+        .space_query_changes("space-qs-000", None)
         .await
         .expect("space_query_changes must succeed");
 
@@ -2281,10 +2282,8 @@ async fn space_join_by_invite_code() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_join(
-            &test_session(&api_url),
-            &SpaceJoinInput::InviteCode("INVITE-XYZ"),
-        )
+        .with_session(&test_session(&api_url))
+        .space_join(&SpaceJoinInput::InviteCode("INVITE-XYZ"))
         .await
         .expect("space_join must succeed");
 
@@ -2322,10 +2321,8 @@ async fn space_join_by_space_id() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_join(
-            &test_session(&api_url),
-            &SpaceJoinInput::SpaceId("01HV5Z6QKWJ7N3P8R2X4YTMDSP"),
-        )
+        .with_session(&test_session(&api_url))
+        .space_join(&SpaceJoinInput::SpaceId("01HV5Z6QKWJ7N3P8R2X4YTMDSP"))
         .await
         .expect("space_join must succeed");
 
@@ -2385,17 +2382,15 @@ async fn push_subscription_set_returns_typed_response() {
         mention_urgency: Some("high".to_string()),
     };
     let result = client
-        .push_subscription_set(
-            &test_session(&api_url),
-            &PushSubscriptionCreateInput {
-                client_id: Some("client-push-001"),
-                device_client_id: "device-abc",
-                url: "https://push.example.com/endpoint",
-                expires: None,
-                types: Some(&["Message"]),
-                chat_push: Some(&[("account1", push_config)]),
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .push_subscription_set(&PushSubscriptionCreateInput {
+            client_id: Some("client-push-001"),
+            device_client_id: "device-abc",
+            url: "https://push.example.com/endpoint",
+            expires: None,
+            types: Some(&["Message"]),
+            chat_push: Some(&[("account1", push_config)]),
+        })
         .await
         .expect("push_subscription_set must succeed");
 
@@ -2430,7 +2425,8 @@ async fn blob_lookup_returns_typed_response() {
     let session = test_session(&server.uri());
 
     let result = client
-        .blob_lookup(&session, &["blob-001", "blob-missing"], Some(&["Message"]))
+        .with_session(&session)
+        .blob_lookup(&["blob-001", "blob-missing"], Some(&["Message"]))
         .await
         .expect("blob_lookup must succeed");
 
@@ -2483,8 +2479,8 @@ async fn message_update_read_at_sends_correct_patch() {
 
     let api_url = format!("{}/api", server.uri());
     client
+        .with_session(&test_session(&api_url))
         .message_update(
-            &test_session(&api_url),
             "01HV5Z6QKWJ7N3P8R2X4YTMD42",
             &MessagePatch {
                 read_at: Some(&read_at),
@@ -2528,14 +2524,12 @@ async fn message_query_with_thread_root_id_sends_correct_filter() {
 
     let api_url = format!("{}/api", server.uri());
     client
-        .message_query(
-            &test_session(&api_url),
-            &MessageQueryInput {
-                chat_id: Some("chat-001"),
-                thread_root_id: Some("msg-root-001"),
-                ..Default::default()
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .message_query(&MessageQueryInput {
+            chat_id: Some("chat-001"),
+            thread_root_id: Some("msg-root-001"),
+            ..Default::default()
+        })
         .await
         .expect("message_query with threadRootId must succeed");
 }
@@ -2563,17 +2557,15 @@ async fn message_create_rate_limited_returns_error() {
     let api_url = format!("{}/api", server.uri());
     let sent_at = jmap_chat::jmap::UTCDate::from_trusted("2024-01-01T10:00:30Z");
     let err = client
-        .message_create(
-            &test_session(&api_url),
-            &MessageCreateInput {
-                client_id: Some("client-id-001"),
-                chat_id: "chat-001",
-                body: "Hello",
-                body_type: "text/plain",
-                sent_at: &sent_at,
-                reply_to: None,
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .message_create(&MessageCreateInput {
+            client_id: Some("client-id-001"),
+            chat_id: "chat-001",
+            body: "Hello",
+            body_type: jmap_chat::types::BodyType::Plain,
+            sent_at: &sent_at,
+            reply_to: None,
+        })
         .await
         .expect_err("message_create must fail when rateLimited");
 
@@ -2614,7 +2606,8 @@ async fn chat_destroy_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_destroy(&test_session(&api_url), &["01HV5Z6QKWJ7N3P8R2X4YTMDCH"])
+        .with_session(&test_session(&api_url))
+        .chat_destroy(&["01HV5Z6QKWJ7N3P8R2X4YTMDCH"])
         .await
         .expect("chat_set_destroy must succeed");
 
@@ -2660,15 +2653,13 @@ async fn chat_create_channel_variant_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .chat_create(
-            &test_session(&api_url),
-            &ChatCreateInput::Channel {
-                client_id: Some("client-ch-001"),
-                space_id: "space-001",
-                name: "general",
-                description: None,
-            },
-        )
+        .with_session(&test_session(&api_url))
+        .chat_create(&ChatCreateInput::Channel {
+            client_id: Some("client-ch-001"),
+            space_id: "space-001",
+            name: "general",
+            description: None,
+        })
         .await
         .expect("chat_create channel must succeed");
 

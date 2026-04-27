@@ -1,17 +1,16 @@
 use super::{ChangesResponse, GetResponse, SetResponse, SpaceBanCreateInput};
 
-impl crate::client::JmapChatClient {
+impl super::SessionClient<'_> {
     /// Fetch SpaceBan objects by IDs (JMAP Chat §4.18 SpaceBan/get).
     ///
     /// If `ids` is `None`, returns all SpaceBan objects for the account.
     /// Pass `properties: None` to return all fields.
     pub async fn space_ban_get(
         &self,
-        session: &crate::jmap::Session,
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::SpaceBan>, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -28,11 +27,10 @@ impl crate::client::JmapChatClient {
     /// other members see changes to their own bans only.
     pub async fn space_ban_changes(
         &self,
-        session: &crate::jmap::Session,
         since_state: &str,
         max_changes: Option<u64>,
     ) -> Result<ChangesResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut args = serde_json::json!({
             "accountId": account_id,
             "sinceState": since_state,
@@ -45,17 +43,14 @@ impl crate::client::JmapChatClient {
         crate::client::extract_response(resp, call_id)
     }
 
-    /// Create or destroy SpaceBan objects (RFC 8620 §5.3 / SpaceBan/set).
+    /// Create a SpaceBan (RFC 8620 §5.3 / SpaceBan/set create).
     ///
-    /// `input` describes a single ban to create. `destroy` is a list of
-    /// existing SpaceBan IDs to delete.
-    pub async fn space_ban_set(
+    /// When `input.client_id` is `None`, a ULID is generated automatically.
+    pub async fn space_ban_create(
         &self,
-        session: &crate::jmap::Session,
         input: &SpaceBanCreateInput<'_>,
-        destroy: &[&str],
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let (api_url, account_id) = Self::session_parts(session)?;
+        let (api_url, account_id) = self.session_parts()?;
         let mut create_obj = serde_json::json!({
             "spaceId": input.space_id,
             "userId": input.user_id,
@@ -71,7 +66,28 @@ impl crate::client::JmapChatClient {
         let args = serde_json::json!({
             "accountId": account_id,
             "create": { client_id: create_obj },
-            "destroy": destroy,
+        });
+        let (call_id, req) = super::build_request("SpaceBan/set", args);
+        let resp = self.call(api_url, &req).await?;
+        crate::client::extract_response(resp, call_id)
+    }
+
+    /// Destroy SpaceBan objects (RFC 8620 §5.3 / SpaceBan/set destroy).
+    ///
+    /// `ids` must be non-empty; the guard fires before any network call.
+    pub async fn space_ban_destroy(
+        &self,
+        ids: &[&str],
+    ) -> Result<SetResponse, crate::error::ClientError> {
+        if ids.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "space_ban_destroy: ids may not be empty".into(),
+            ));
+        }
+        let (api_url, account_id) = self.session_parts()?;
+        let args = serde_json::json!({
+            "accountId": account_id,
+            "destroy": ids,
         });
         let (call_id, req) = super::build_request("SpaceBan/set", args);
         let resp = self.call(api_url, &req).await?;

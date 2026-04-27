@@ -59,3 +59,5 @@
 [10:40:53] COORDINATOR: claimed epic a20 (Batch requests, RefPlus, Quotas)
 [10:42:56] COORDINATOR: phase1 done, starting 0g1 (batch builder)
 [10:47:59] COORDINATOR: a20 complete — batch builder, RefPlus, Quota/get
+[14:47:26] COORDINATOR: starting epic jqa - Idiomatic Rust API redesign
+[15:34:04] COORDINATOR: claimed epic jmap-chat-tui-d2t, API idiomaticity improvements
