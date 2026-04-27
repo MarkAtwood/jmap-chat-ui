@@ -30,9 +30,7 @@ pub struct NoneAuth;
 
 impl AuthProvider for NoneAuth {
     fn build_client(&self) -> Result<reqwest::Client, ClientError> {
-        Ok(reqwest::ClientBuilder::new()
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .build()?)
+        default_reqwest_client()
     }
 
     fn auth_header(&self) -> Option<(HeaderName, HeaderValue)> {
@@ -74,9 +72,7 @@ impl BearerAuth {
 
 impl AuthProvider for BearerAuth {
     fn build_client(&self) -> Result<reqwest::Client, ClientError> {
-        Ok(reqwest::ClientBuilder::new()
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .build()?)
+        default_reqwest_client()
     }
 
     fn auth_header(&self) -> Option<(HeaderName, HeaderValue)> {
@@ -120,9 +116,7 @@ impl BasicAuth {
 
 impl AuthProvider for BasicAuth {
     fn build_client(&self) -> Result<reqwest::Client, ClientError> {
-        Ok(reqwest::ClientBuilder::new()
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .build()?)
+        default_reqwest_client()
     }
 
     fn auth_header(&self) -> Option<(HeaderName, HeaderValue)> {
@@ -164,6 +158,22 @@ impl AuthProvider for CustomCaAuth {
 }
 
 // ---------------------------------------------------------------------------
+// Internal helper
+// ---------------------------------------------------------------------------
+
+/// Build a standard reqwest client with a 10-second connect timeout.
+///
+/// Used by NoneAuth, BearerAuth, and BasicAuth whose HTTP transport
+/// requirements are identical. CustomCaAuth has its own body because it
+/// must install a custom trust root.
+fn default_reqwest_client() -> Result<reqwest::Client, ClientError> {
+    reqwest::ClientBuilder::new()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(ClientError::Http)
+}
+
+// ---------------------------------------------------------------------------
 // Blanket impl for Box<dyn AuthProvider>
 // ---------------------------------------------------------------------------
 //
@@ -171,7 +181,8 @@ impl AuthProvider for CustomCaAuth {
 // factory functions (e.g. `config::Config::auth_provider`) can return a boxed
 // trait object and pass it directly to `JmapChatClient::new`.
 //
-// Maintenance cost: every method added to `AuthProvider` must be mirrored here.
+// Maintenance cost: every method added to `AuthProvider` must be mirrored here;
+// currently mirrors: build_client, auth_header.
 // The alternative — a concrete wrapper enum — avoids this coupling but requires
 // the enum to live in the same crate as all variants, complicating external
 // AuthProvider implementations. The blanket impl is accepted as the simpler
@@ -194,7 +205,8 @@ impl AuthProvider for Box<dyn AuthProvider> {
 // `Arc<dyn AuthProvider>` to satisfy `impl AuthProvider + 'static`, enabling
 // `JmapChatClient` to be `Clone` (Arc is Clone; Box is not).
 //
-// Maintenance cost: every method added to `AuthProvider` must be mirrored here.
+// Maintenance cost: every method added to `AuthProvider` must be mirrored here;
+// currently mirrors: build_client, auth_header.
 impl AuthProvider for Arc<dyn AuthProvider> {
     fn build_client(&self) -> Result<reqwest::Client, ClientError> {
         (**self).build_client()

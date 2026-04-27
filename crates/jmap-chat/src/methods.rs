@@ -85,6 +85,15 @@ pub struct SetError {
 // Input types for methods with many optional parameters
 // ---------------------------------------------------------------------------
 
+/// Input parameters for [`JmapChatClient::chat_query`].
+#[derive(Debug, Default)]
+pub struct ChatQueryInput {
+    pub filter_kind: Option<crate::types::ChatKind>,
+    pub filter_muted: Option<bool>,
+    pub position: Option<u64>,
+    pub limit: Option<u64>,
+}
+
 /// Input parameters for [`JmapChatClient::message_query`].
 #[derive(Debug, Default)]
 pub struct MessageQueryInput<'a> {
@@ -102,7 +111,8 @@ pub struct MessageCreateInput<'a> {
     pub chat_id: &'a str,
     pub body: &'a str,
     pub body_type: &'a str,
-    pub sent_at: &'a str,
+    /// RFC 3339 timestamp (e.g. from `chrono::Utc::now().to_rfc3339()`).
+    pub sent_at: &'a crate::jmap::UTCDate,
     pub reply_to: Option<&'a str>,
 }
 
@@ -111,6 +121,23 @@ pub struct MessageCreateInput<'a> {
 // ---------------------------------------------------------------------------
 
 impl crate::client::JmapChatClient {
+    /// Extract the API URL and chat account ID from a session.
+    ///
+    /// Returns `Err(InvalidSession)` if the session has no primary account for
+    /// `urn:ietf:params:jmap:chat`. All method wrappers call this as their first
+    /// step; currently mirrors: build_client, auth_header.
+    fn session_parts(
+        session: &crate::jmap::Session,
+    ) -> Result<(&str, &str), crate::error::ClientError> {
+        let api_url = session.api_url.as_str();
+        let account_id = session.chat_account_id().ok_or_else(|| {
+            crate::error::ClientError::InvalidSession(
+                "no primary account for urn:ietf:params:jmap:chat in Session.primaryAccounts",
+            )
+        })?;
+        Ok((api_url, account_id))
+    }
+
     /// Fetch Chat objects by IDs (RFC 8620 §5.1 / JMAP Chat §5 Chat/get).
     ///
     /// If `ids` is `None`, the server returns all Chats for the account.
@@ -121,10 +148,7 @@ impl crate::client::JmapChatClient {
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::Chat>, crate::error::ClientError> {
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -137,29 +161,20 @@ impl crate::client::JmapChatClient {
 
     /// Query Chat IDs with optional filter (RFC 8620 §5.5 / JMAP Chat §5 Chat/query).
     ///
-    /// `filter_kind`: `Some(ChatKind::Direct)`, `Some(ChatKind::Group)`, etc., or `None`.
-    /// `filter_muted`: filter by mute state when `Some`.
-    /// Only keys that are `Some` are included in the filter object; an empty
-    /// filter object is sent as JSON `null`.
+    /// Only keys that are `Some` in `input` are included in the filter object;
+    /// an empty filter object is sent as JSON `null`.
     pub async fn chat_query(
         &self,
         session: &crate::jmap::Session,
-        filter_kind: Option<crate::types::ChatKind>,
-        filter_muted: Option<bool>,
-        position: Option<u64>,
-        limit: Option<u64>,
+        input: &ChatQueryInput,
     ) -> Result<QueryResponse, crate::error::ClientError> {
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let mut filter = serde_json::Map::new();
-        if let Some(k) = filter_kind {
-            let kind_str =
-                serde_json::to_value(&k).map_err(crate::error::ClientError::Serialize)?;
+        if let Some(ref k) = input.filter_kind {
+            let kind_str = serde_json::to_value(k).map_err(crate::error::ClientError::Serialize)?;
             filter.insert("kind".into(), kind_str);
         }
-        if let Some(m) = filter_muted {
+        if let Some(m) = input.filter_muted {
             filter.insert("muted".into(), m.into());
         }
         let filter_val = if filter.is_empty() {
@@ -170,8 +185,8 @@ impl crate::client::JmapChatClient {
         let args = serde_json::json!({
             "accountId": account_id,
             "filter": filter_val,
-            "position": position,
-            "limit": limit,
+            "position": input.position,
+            "limit": input.limit,
         });
         let req = build_request("Chat/query", args);
         let resp = self.call(api_url, &req).await?;
@@ -188,10 +203,7 @@ impl crate::client::JmapChatClient {
         since_state: &str,
         max_changes: Option<u64>,
     ) -> Result<ChangesResponse, crate::error::ClientError> {
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let args = serde_json::json!({
             "accountId": account_id,
             "sinceState": since_state,
@@ -217,10 +229,7 @@ impl crate::client::JmapChatClient {
                 "message_get: ids may not be empty".into(),
             ));
         }
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -251,10 +260,14 @@ impl crate::client::JmapChatClient {
                 "message_query: chat_id or has_mention=true must be provided".into(),
             ));
         }
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        if let Some(id) = input.chat_id {
+            if id.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "chat_id must not be empty".to_string(),
+                ));
+            }
+        }
+        let (api_url, account_id) = Self::session_parts(session)?;
         let mut filter = serde_json::Map::new();
         if let Some(id) = input.chat_id {
             filter.insert("chatId".into(), id.into());
@@ -289,10 +302,7 @@ impl crate::client::JmapChatClient {
         since_state: &str,
         max_changes: Option<u64>,
     ) -> Result<ChangesResponse, crate::error::ClientError> {
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let args = serde_json::json!({
             "accountId": account_id,
             "sinceState": since_state,
@@ -313,15 +323,12 @@ impl crate::client::JmapChatClient {
         session: &crate::jmap::Session,
         input: &MessageCreateInput<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let mut create_obj = serde_json::json!({
             "chatId": input.chat_id,
             "body": input.body,
             "bodyType": input.body_type,
-            "sentAt": input.sent_at,
+            "sentAt": input.sent_at.as_str(),
         });
         if let Some(rt) = input.reply_to {
             create_obj["replyTo"] = rt.into();
@@ -344,10 +351,7 @@ impl crate::client::JmapChatClient {
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::ChatContact>, crate::error::ClientError> {
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -367,10 +371,7 @@ impl crate::client::JmapChatClient {
         session: &crate::jmap::Session,
         ids: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::ReadPosition>, crate::error::ClientError> {
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": ids,
@@ -394,10 +395,7 @@ impl crate::client::JmapChatClient {
         read_position_id: &str,
         last_read_message_id: &str,
     ) -> Result<SetResponse, crate::error::ClientError> {
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let args = serde_json::json!({
             "accountId": account_id,
             "update": {
@@ -417,10 +415,7 @@ impl crate::client::JmapChatClient {
         &self,
         session: &crate::jmap::Session,
     ) -> Result<GetResponse<crate::types::PresenceStatus>, crate::error::ClientError> {
-        let api_url = &session.api_url;
-        let account_id = session
-            .chat_account_id()
-            .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
+        let (api_url, account_id) = Self::session_parts(session)?;
         let args = serde_json::json!({
             "accountId": account_id,
             "ids": serde_json::Value::Null,

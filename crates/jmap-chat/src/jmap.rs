@@ -87,6 +87,10 @@ impl PartialEq<Id> for &str {
 
 /// An RFC 3339 UTC timestamp string (JMAP UTCDate, RFC 8620 §1.4).
 /// Guaranteed non-empty. Serializes/deserializes transparently as a JSON string.
+///
+/// Note: `UTCDate::new` validates non-empty but not RFC 3339 format. Call
+/// [`UTCDate::parse`] when datetime arithmetic is needed; use [`UTCDate::as_str`]
+/// or `Display` for logging or display.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(transparent)]
 pub struct UTCDate(String);

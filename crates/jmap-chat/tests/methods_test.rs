@@ -13,6 +13,9 @@ use wiremock::matchers::method;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn test_session(api_url: &str) -> jmap_chat::jmap::Session {
+    // "account1" is the chat primary account id used across all test fixtures.
+    // accounts map is intentionally empty — tests only need chat_account_id(),
+    // not the full AccountInfo. chat_capability() returns Ok(None) on this session.
     serde_json::from_value(serde_json::json!({
         "capabilities": {},
         "accounts": {},
@@ -94,6 +97,7 @@ async fn message_create_returns_typed_response() {
         .expect("client construction must succeed");
 
     let api_url = format!("{}/api", server.uri());
+    let sent_at = jmap_chat::jmap::UTCDate::from_trusted("2024-01-02T12:00:00Z");
     let result = client
         .message_create(
             &test_session(&api_url),
@@ -102,7 +106,7 @@ async fn message_create_returns_typed_response() {
                 chat_id: "01HV5Z6QKWJ7N3P8R2X4YTMD3G",
                 body: "Hello, world!",
                 body_type: "text/plain",
-                sent_at: "2024-01-02T12:00:00Z",
+                sent_at: &sent_at,
                 reply_to: None,
             },
         )

@@ -535,23 +535,23 @@ pub struct DeliveryReceipt {
 
 /// The sender of a message or reaction.
 ///
-/// Per spec: `"self"` for owner-composed messages; the sender's
-/// `ChatContact.id` for inbound messages.
+/// Wire value `"self"` is the spec-defined sentinel (draft-atwood-jmap-chat-00 §4.10);
+/// empty strings are rejected as they are not valid ChatContact IDs.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum SenderIdOrSelf {
     /// The mailbox owner composed this message. Wire value: `"self"`.
     SelfSender,
     /// An inbound message from a contact. Wire value: the contact's
-    /// `ChatContact.id` string.
-    Contact(String),
+    /// `ChatContact.id` string. Empty strings are rejected at construction.
+    Contact(crate::jmap::Id),
 }
 
 impl serde::Serialize for SenderIdOrSelf {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
             SenderIdOrSelf::SelfSender => s.serialize_str("self"),
-            SenderIdOrSelf::Contact(id) => s.serialize_str(id),
+            SenderIdOrSelf::Contact(id) => s.serialize_str(id.as_str()),
         }
     }
 }
@@ -561,10 +561,10 @@ impl<'de> serde::Deserialize<'de> for SenderIdOrSelf {
         let s = String::deserialize(d)?;
         if s == "self" {
             Ok(SenderIdOrSelf::SelfSender)
-        } else if s.is_empty() {
-            Err(serde::de::Error::custom("sender_id must not be empty"))
         } else {
-            Ok(SenderIdOrSelf::Contact(s))
+            crate::jmap::Id::new(s)
+                .map(SenderIdOrSelf::Contact)
+                .map_err(serde::de::Error::custom)
         }
     }
 }
@@ -573,7 +573,7 @@ impl std::fmt::Display for SenderIdOrSelf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SenderIdOrSelf::SelfSender => f.write_str("self"),
-            SenderIdOrSelf::Contact(id) => f.write_str(id),
+            SenderIdOrSelf::Contact(id) => f.write_str(id.as_str()),
         }
     }
 }
@@ -1496,7 +1496,10 @@ mod tests {
     #[test]
     fn sender_id_deserialize_contact() {
         let v: SenderIdOrSelf = serde_json::from_str("\"contact-abc123\"").unwrap();
-        assert_eq!(v, SenderIdOrSelf::Contact("contact-abc123".into()));
+        assert_eq!(
+            v,
+            SenderIdOrSelf::Contact(crate::jmap::Id::from_trusted("contact-abc123"))
+        );
     }
 
     #[test]

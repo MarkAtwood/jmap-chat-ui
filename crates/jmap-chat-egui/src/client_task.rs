@@ -22,7 +22,7 @@ use futures::StreamExt;
 
 use jmap_chat::client::JmapChatClient;
 use jmap_chat::error::ClientError;
-use jmap_chat::methods::{MessageCreateInput, MessageQueryInput};
+use jmap_chat::methods::{ChatQueryInput, MessageCreateInput, MessageQueryInput};
 use jmap_chat::sse::SseEvent;
 
 use crate::event::{AppCommand, AppEvent, ConnectionStatus};
@@ -269,7 +269,8 @@ pub async fn run(
 
                     Some(AppCommand::SendMessage { chat_id, body }) => {
                         let client_id = ulid::Ulid::new().to_string();
-                        let sent_at = now_rfc3339();
+                        let sent_at =
+                            jmap_chat::jmap::UTCDate::from_trusted(now_rfc3339());
                         match client
                             .message_create(
                                 &session,
@@ -470,7 +471,13 @@ async fn load_chats(
     ctx: &egui::Context,
 ) -> Result<String, ClientError> {
     let query = client
-        .chat_query(session, None, None, None, Some(200))
+        .chat_query(
+            session,
+            &ChatQueryInput {
+                limit: Some(200),
+                ..Default::default()
+            },
+        )
         .await?;
 
     // Always call chat_get even when ids is empty, so we get the current state
@@ -515,16 +522,8 @@ async fn load_messages_for_chat(
     // undefined. Sort ascending by parsed UTC instant so messages display
     // chronologically regardless of RFC 3339 offset format in sent_at.
     // messages.last() is then the most recent (required for auto-mark-read).
-    messages.sort_by(|a, b| {
-        let ta = chrono::DateTime::parse_from_rfc3339(a.sent_at.as_str());
-        let tb = chrono::DateTime::parse_from_rfc3339(b.sent_at.as_str());
-        match (ta, tb) {
-            (Ok(ta), Ok(tb)) => ta.cmp(&tb),
-            (Err(_), Ok(_)) => std::cmp::Ordering::Less,
-            (Ok(_), Err(_)) => std::cmp::Ordering::Greater,
-            (Err(_), Err(_)) => std::cmp::Ordering::Equal,
-        }
-    });
+    // None (parse failure) sorts before Some, placing unparseable entries first.
+    messages.sort_by_key(|m| m.sent_at.parse().ok());
 
     // Capture the last message ID before moving `messages` into the event.
     let last_msg_id: Option<String> = messages.last().map(|m| m.id.to_string());
@@ -697,7 +696,11 @@ async fn handle_state_change(
     tx: &EventSender,
     ctx: &egui::Context,
 ) {
-    if let Some(type_map) = changed.get(session.chat_account_id().unwrap_or_default()) {
+    let account_id = match session.chat_account_id() {
+        Some(id) => id,
+        None => return, // session has no chat account; nothing to process
+    };
+    if let Some(type_map) = changed.get(account_id) {
         if type_map.contains_key("Chat") {
             if let Some(new_state) =
                 chat_delta_sync(Arc::clone(&client), session, chat_state.as_deref(), tx, ctx).await
