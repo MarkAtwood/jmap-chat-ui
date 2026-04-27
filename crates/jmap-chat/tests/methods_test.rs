@@ -1981,9 +1981,7 @@ async fn space_get_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(fixture("space_get_response.json")),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("space_get_response.json")))
         .mount(&server)
         .await;
 
@@ -2015,11 +2013,23 @@ async fn space_get_returns_typed_response() {
 
 /// Oracle: RFC 8620 §5.2 — Space/changes response: oldState, newState,
 /// hasMoreChanges, created/updated/destroyed lists.
+///
+/// Body matcher: verifies sinceState is sent and maxChanges is null when None.
+/// RFC 8620 §5.2 defines maxChanges as `UnsignedInt|null` — sending null
+/// means "no limit", which is distinct from omitting the key entirely.
 #[tokio::test]
 async fn space_changes_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Space/changes", {
+                "accountId": "account1",
+                "sinceState": "state-space-000",
+                "maxChanges": null
+            }, "r1"]]
+        })))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(fixture("space_changes_response.json")),
         )
@@ -2159,11 +2169,20 @@ async fn space_set_update_returns_typed_response() {
 // ---------------------------------------------------------------------------
 
 /// Oracle: RFC 8620 §5.3 — Space/set destroy response: destroyed list.
+///
+/// Body matcher: verifies the destroy key is present with the correct id array.
 #[tokio::test]
 async fn space_set_destroy_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Space/set", {
+                "accountId": "account1",
+                "destroy": ["01HV5Z6QKWJ7N3P8R2X4YTMDSP"]
+            }, "r1"]]
+        })))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(fixture("space_set_destroy_response.json")),
         )
@@ -2175,10 +2194,7 @@ async fn space_set_destroy_returns_typed_response() {
 
     let api_url = format!("{}/api", server.uri());
     let result = client
-        .space_set_destroy(
-            &test_session(&api_url),
-            &["01HV5Z6QKWJ7N3P8R2X4YTMDSP"],
-        )
+        .space_set_destroy(&test_session(&api_url), &["01HV5Z6QKWJ7N3P8R2X4YTMDSP"])
         .await
         .expect("space_set_destroy must succeed");
 
@@ -2259,8 +2275,7 @@ async fn space_query_changes_returns_typed_response() {
             }, "r1"]]
         })))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(fixture("space_query_changes_response.json")),
+            ResponseTemplate::new(200).set_body_json(fixture("space_query_changes_response.json")),
         )
         .mount(&server)
         .await;
@@ -2301,9 +2316,7 @@ async fn space_join_by_invite_code() {
                 "inviteCode": "INVITE-XYZ"
             }, "r1"]]
         })))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(fixture("space_join_response.json")),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("space_join_response.json")))
         .mount(&server)
         .await;
 
@@ -2314,10 +2327,7 @@ async fn space_join_by_invite_code() {
     let result = client
         .space_join(
             &test_session(&api_url),
-            &SpaceJoinInput {
-                invite_code: Some("INVITE-XYZ"),
-                space_id: None,
-            },
+            &SpaceJoinInput::InviteCode("INVITE-XYZ"),
         )
         .await
         .expect("space_join must succeed");
@@ -2328,46 +2338,42 @@ async fn space_join_by_invite_code() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 55: space_join — guard rejects neither nor both
+// Test 55: space_join — SpaceId path body shape
 // ---------------------------------------------------------------------------
 
-/// Oracle: ClientError::InvalidArgument when both fields are None or both are Some.
-/// No network call is made; wiremock server is unused.
+/// Oracle: JMAP Chat §Space/join — SpaceJoinResponse with accountId and spaceId.
+///
+/// Body matcher: verifies spaceId present and inviteCode absent (SpaceId path).
+/// Covers the second enum variant so both join paths are wire-verified.
 #[tokio::test]
-async fn space_join_rejects_neither_nor_both() {
-    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, "http://unused")
+async fn space_join_by_space_id() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Space/join", {
+                "accountId": "account1",
+                "spaceId": "01HV5Z6QKWJ7N3P8R2X4YTMDSP"
+            }, "r1"]]
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("space_join_response.json")))
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
         .expect("client construction must succeed");
-    let session = test_session("http://unused/api");
 
-    // Neither provided
-    let err = client
+    let api_url = format!("{}/api", server.uri());
+    let result = client
         .space_join(
-            &session,
-            &SpaceJoinInput {
-                invite_code: None,
-                space_id: None,
-            },
+            &test_session(&api_url),
+            &SpaceJoinInput::SpaceId("01HV5Z6QKWJ7N3P8R2X4YTMDSP"),
         )
         .await
-        .expect_err("neither must fail");
-    assert!(
-        matches!(err, ClientError::InvalidArgument(_)),
-        "expected InvalidArgument, got {err:?}"
-    );
+        .expect("space_join must succeed");
 
-    // Both provided
-    let err = client
-        .space_join(
-            &session,
-            &SpaceJoinInput {
-                invite_code: Some("CODE"),
-                space_id: Some("01HV5Z6QKWJ7N3P8R2X4YTMDSP"),
-            },
-        )
-        .await
-        .expect_err("both must fail");
-    assert!(
-        matches!(err, ClientError::InvalidArgument(_)),
-        "expected InvalidArgument, got {err:?}"
-    );
+    // Oracle: space_join_response.json — accountId and spaceId present
+    assert_eq!(result.account_id, "account1");
+    assert_eq!(result.space_id, "01HV5Z6QKWJ7N3P8R2X4YTMDSP");
 }

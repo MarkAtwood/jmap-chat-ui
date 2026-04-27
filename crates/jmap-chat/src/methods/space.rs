@@ -160,33 +160,22 @@ impl crate::client::JmapChatClient {
 
     /// Join a Space via invite code or direct ID (JMAP Chat §Space/join).
     ///
-    /// Exactly one of `input.invite_code` or `input.space_id` must be `Some`.
-    /// Supplying both or neither returns `ClientError::InvalidArgument`.
+    /// `input` selects exactly one join path; the enum makes invalid inputs
+    /// unrepresentable at the type level.
     pub async fn space_join(
         &self,
         session: &crate::jmap::Session,
         input: &SpaceJoinInput<'_>,
     ) -> Result<SpaceJoinResponse, crate::error::ClientError> {
-        match (input.invite_code, input.space_id) {
-            (None, None) => {
-                return Err(crate::error::ClientError::InvalidArgument(
-                    "space_join: exactly one of invite_code or space_id must be provided".into(),
-                ))
-            }
-            (Some(_), Some(_)) => {
-                return Err(crate::error::ClientError::InvalidArgument(
-                    "space_join: only one of invite_code or space_id may be provided".into(),
-                ))
-            }
-            _ => {}
-        }
         let (api_url, account_id) = Self::session_parts(session)?;
         let mut args = serde_json::json!({ "accountId": account_id });
-        if let Some(ic) = input.invite_code {
-            args["inviteCode"] = ic.into();
-        }
-        if let Some(sid) = input.space_id {
-            args["spaceId"] = sid.into();
+        match input {
+            SpaceJoinInput::InviteCode(ic) => {
+                args["inviteCode"] = (*ic).into();
+            }
+            SpaceJoinInput::SpaceId(sid) => {
+                args["spaceId"] = (*sid).into();
+            }
         }
         let (call_id, req) = super::build_request("Space/join", args);
         let resp = self.call(api_url, &req).await?;
@@ -199,8 +188,14 @@ impl crate::client::JmapChatClient {
     /// Nullable fields (`description`, `icon_blob_id`) accept `Some(None)` to clear
     /// and `Some(Some(v))` to set. Slice fields default to `&[]` for no-change.
     ///
-    /// Scope: metadata + member + channel management. Role and category management
-    /// are not included in this method.
+    /// If all fields are absent/empty, an empty patch is sent — RFC 8620 §5.3
+    /// permits this; the server treats it as a no-op but still returns the Space
+    /// in `updated`.
+    ///
+    /// **Out of scope**: `addRoles`, `removeRoles`, `updateRoles`,
+    /// `updateChannels`, `addCategories`, `removeCategories`, `updateCategories`
+    /// are not included. Role and category management will be added in a future
+    /// iteration of this API.
     pub async fn space_set_update(
         &self,
         session: &crate::jmap::Session,

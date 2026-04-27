@@ -331,16 +331,16 @@ pub struct SpaceQueryInput<'a> {
     pub limit: Option<u64>,
 }
 
-/// Input parameters for [`JmapChatClient::space_join`].
+/// How to join a Space — passed to [`JmapChatClient::space_join`].
 ///
-/// Exactly one of `invite_code` or `space_id` must be `Some`.
-/// Supplying both or neither returns `ClientError::InvalidArgument`.
+/// The enum makes invalid inputs unrepresentable: exactly one path is always
+/// selected at construction time, so the runtime guard is not needed.
 #[derive(Debug)]
-pub struct SpaceJoinInput<'a> {
-    /// Redeem a SpaceInvite by its `code` field (not `id`).
-    pub invite_code: Option<&'a str>,
-    /// Join a public Space directly by its id.
-    pub space_id: Option<&'a str>,
+pub enum SpaceJoinInput<'a> {
+    /// Redeem a SpaceInvite by its `code` field (not its `id`).
+    InviteCode(&'a str),
+    /// Join a public Space directly by its JMAP id.
+    SpaceId(&'a str),
 }
 
 /// Response to [`JmapChatClient::space_join`] (JMAP Chat §Space/join).
