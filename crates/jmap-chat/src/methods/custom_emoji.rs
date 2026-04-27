@@ -1,4 +1,7 @@
-use super::{ChangesResponse, CustomEmojiCreateInput, CustomEmojiQueryInput, GetResponse, QueryChangesResponse, QueryResponse, SetResponse};
+use super::{
+    ChangesResponse, CustomEmojiCreateInput, CustomEmojiQueryInput, GetResponse,
+    QueryChangesResponse, QueryResponse, SetResponse,
+};
 
 impl crate::client::JmapChatClient {
     /// Fetch CustomEmoji objects by IDs (JMAP Chat §4.16 CustomEmoji/get).
@@ -71,18 +74,15 @@ impl crate::client::JmapChatClient {
     pub async fn custom_emoji_query(
         &self,
         session: &crate::jmap::Session,
-        input: &CustomEmojiQueryInput,
+        input: &CustomEmojiQueryInput<'_>,
     ) -> Result<QueryResponse, crate::error::ClientError> {
         let (api_url, account_id) = Self::session_parts(session)?;
-        let filter_val = if let Some(ref sid) = input.filter_space_id {
-            serde_json::json!({"spaceId": sid})
-        } else {
-            serde_json::Value::Null
-        };
         let mut args = serde_json::json!({
             "accountId": account_id,
-            "filter": filter_val,
         });
+        if let Some(sid) = input.filter_space_id {
+            args["filter"] = serde_json::json!({"spaceId": sid});
+        }
         if let Some(p) = input.position {
             args["position"] = p.into();
         }

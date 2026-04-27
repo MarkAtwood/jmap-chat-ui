@@ -88,6 +88,20 @@ variant distinguishes cases (e.g., `chat_contact_no_presence` vs
 | `read_position_get_response.json` | `ReadPosition/get` response — list with one ReadPosition |
 | `read_position_set_response.json` | `ReadPosition/set` response — updated map |
 | `presence_status_get_response.json` | `PresenceStatus/get` response — list with one PresenceStatus |
+| `read_position_changes_response.json` | `ReadPosition/changes` response — one updated id |
+| `presence_status_set_response.json` | `PresenceStatus/set` response — updated map |
+| `presence_status_changes_response.json` | `PresenceStatus/changes` response — one updated id |
+| `custom_emoji_get_response.json` | `CustomEmoji/get` response — list with one CustomEmoji |
+| `custom_emoji_changes_response.json` | `CustomEmoji/changes` response — one created id |
+| `custom_emoji_set_response.json` | `CustomEmoji/set` response — created map |
+| `custom_emoji_query_response.json` | `CustomEmoji/query` response — ids list |
+| `custom_emoji_query_changes_response.json` | `CustomEmoji/queryChanges` response — one added item |
+| `space_ban_get_response.json` | `SpaceBan/get` response — list with one SpaceBan |
+| `space_ban_changes_response.json` | `SpaceBan/changes` response — one created id, empty updated/destroyed |
+| `space_ban_set_response.json` | `SpaceBan/set` response — created map |
+| `space_invite_get_response.json` | `SpaceInvite/get` response — list with one SpaceInvite |
+| `space_invite_changes_response.json` | `SpaceInvite/changes` response — one created id |
+| `space_invite_set_response.json` | `SpaceInvite/set` response — created map |
 | `method_error_response.json` | `JmapResponse` — `error` invocation (unknownMethod) |
 
 ## When to Commit a Generation Script

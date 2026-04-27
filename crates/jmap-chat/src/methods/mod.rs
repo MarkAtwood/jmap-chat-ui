@@ -58,9 +58,10 @@ pub struct ChangesResponse {
 
 /// RFC 8620 §5.3 — /set response.
 ///
-/// Used for both create (`message_create`) and update (`read_position_set`)
-/// operations. Only the fields relevant to those two operations are modelled
-/// here; `destroy` is deferred to Phase 4.
+/// Used for create (`message_create`, `custom_emoji_set`, `space_ban_set`,
+/// `space_invite_set`), update (`read_position_set`, `presence_status_set`),
+/// and destroy operations. All optional maps are `None` when absent in the
+/// server response.
 ///
 /// The type parameter `T` is the shape of each created/updated object.
 /// Defaults to `serde_json::Value` so callers that don't need typed objects
@@ -161,7 +162,10 @@ pub struct MessageCreateInput<'a> {
 /// the patch, leaving the server value unchanged. For nullable spec fields
 /// (`status_text`, `status_emoji`, `expires_at`) use `Some(None)` to clear
 /// the field and `Some(Some(value))` to set it.
-#[derive(Debug, Default)]
+///
+/// `Default` is intentionally not derived: `id` has no safe default value and
+/// an empty-string id would produce an invalid `/set` patch key.
+#[derive(Debug)]
 pub struct PresenceStatusSetInput<'a> {
     /// The PresenceStatus.id to update (from `presence_status_get`).
     pub id: &'a str,
@@ -175,10 +179,10 @@ pub struct PresenceStatusSetInput<'a> {
 
 /// Input parameters for [`JmapChatClient::custom_emoji_query`].
 #[derive(Debug, Default)]
-pub struct CustomEmojiQueryInput {
+pub struct CustomEmojiQueryInput<'a> {
     /// Filter to a specific Space's custom emojis. `None` returns all emojis
     /// visible to the account (Space-specific + server-global).
-    pub filter_space_id: Option<String>,
+    pub filter_space_id: Option<&'a str>,
     pub position: Option<u64>,
     pub limit: Option<u64>,
 }
@@ -233,7 +237,10 @@ const CALL_ID: &str = "r1";
 /// Returns `(call_id, request)`. Pass `call_id` to
 /// `crate::client::extract_response` so the pairing is explicit and
 /// compiler-visible rather than via a shared constant.
-fn build_request(method_name: &str, args: serde_json::Value) -> (&'static str, crate::jmap::JmapRequest) {
+fn build_request(
+    method_name: &str,
+    args: serde_json::Value,
+) -> (&'static str, crate::jmap::JmapRequest) {
     let req = crate::jmap::JmapRequest {
         using: chat_using().to_vec(),
         method_calls: vec![(method_name.to_string(), args, CALL_ID.to_string())],

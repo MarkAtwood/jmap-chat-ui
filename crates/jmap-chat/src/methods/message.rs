@@ -1,4 +1,6 @@
-use super::{ChangesResponse, GetResponse, MessageCreateInput, MessageQueryInput, QueryResponse, SetResponse};
+use super::{
+    ChangesResponse, GetResponse, MessageCreateInput, MessageQueryInput, QueryResponse, SetResponse,
+};
 
 impl crate::client::JmapChatClient {
     /// Fetch Message objects by IDs (RFC 8620 §5.1 / JMAP Chat §5 Message/get).

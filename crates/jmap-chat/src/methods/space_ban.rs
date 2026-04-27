@@ -1,4 +1,4 @@
-use super::{GetResponse, SetResponse, SpaceBanCreateInput};
+use super::{ChangesResponse, GetResponse, SetResponse, SpaceBanCreateInput};
 
 impl crate::client::JmapChatClient {
     /// Fetch SpaceBan objects by IDs (JMAP Chat §4.18 SpaceBan/get).
@@ -18,6 +18,27 @@ impl crate::client::JmapChatClient {
             "properties": properties,
         });
         let (call_id, req) = super::build_request("SpaceBan/get", args);
+        let resp = self.call(api_url, &req).await?;
+        crate::client::extract_response(resp, call_id)
+    }
+
+    /// Fetch changes to SpaceBan objects since `since_state` (RFC 8620 §5.2 / SpaceBan/changes).
+    ///
+    /// Only members with `"ban"` permission in the Space see all changes;
+    /// other members see changes to their own bans only.
+    pub async fn space_ban_changes(
+        &self,
+        session: &crate::jmap::Session,
+        since_state: &str,
+        max_changes: Option<u64>,
+    ) -> Result<ChangesResponse, crate::error::ClientError> {
+        let (api_url, account_id) = Self::session_parts(session)?;
+        let args = serde_json::json!({
+            "accountId": account_id,
+            "sinceState": since_state,
+            "maxChanges": max_changes,
+        });
+        let (call_id, req) = super::build_request("SpaceBan/changes", args);
         let resp = self.call(api_url, &req).await?;
         crate::client::extract_response(resp, call_id)
     }

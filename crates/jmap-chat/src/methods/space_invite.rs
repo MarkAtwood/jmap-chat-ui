@@ -45,8 +45,11 @@ impl crate::client::JmapChatClient {
 
     /// Create or destroy SpaceInvite objects (RFC 8620 §5.3 / SpaceInvite/set).
     ///
-    /// `input` describes a single invite to create; pass `None` to skip creation.
-    /// `destroy` is a list of existing SpaceInvite IDs to delete.
+    /// `input` describes a single invite to create; pass `None` to skip creation
+    /// (destroy-only call). `destroy` is a list of existing SpaceInvite IDs to delete.
+    ///
+    /// When `input` is `None` the `create` key is omitted entirely from the request,
+    /// satisfying RFC 8620 §5.3 which requires `create` to be absent or an object.
     pub async fn space_invite_set(
         &self,
         session: &crate::jmap::Session,
@@ -54,7 +57,11 @@ impl crate::client::JmapChatClient {
         destroy: &[&str],
     ) -> Result<SetResponse, crate::error::ClientError> {
         let (api_url, account_id) = Self::session_parts(session)?;
-        let create_map = if let Some(inp) = input {
+        let mut args = serde_json::json!({
+            "accountId": account_id,
+            "destroy": destroy,
+        });
+        if let Some(inp) = input {
             let mut obj = serde_json::json!({ "spaceId": inp.space_id });
             if let Some(ch) = inp.default_channel_id {
                 obj["defaultChannelId"] = ch.into();
@@ -65,15 +72,8 @@ impl crate::client::JmapChatClient {
             if let Some(mu) = inp.max_uses {
                 obj["maxUses"] = mu.into();
             }
-            serde_json::json!({ inp.client_id: obj })
-        } else {
-            serde_json::Value::Null
-        };
-        let args = serde_json::json!({
-            "accountId": account_id,
-            "create": create_map,
-            "destroy": destroy,
-        });
+            args["create"] = serde_json::json!({ inp.client_id: obj });
+        }
         let (call_id, req) = super::build_request("SpaceInvite/set", args);
         let resp = self.call(api_url, &req).await?;
         crate::client::extract_response(resp, call_id)

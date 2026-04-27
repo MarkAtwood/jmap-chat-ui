@@ -172,7 +172,8 @@ pub async fn run(
     // Phase 2: Spawn SSE subtask.
     let (sse_tx, mut sse_rx) = tokio::sync::mpsc::unbounded_channel::<SseNotification>();
     let mut last_sse_event_id: Option<String> = None;
-    let mut sse_handle = spawn_sse_task(Arc::clone(&client), event_source_url.clone(), sse_tx, None);
+    let mut sse_handle =
+        spawn_sse_task(Arc::clone(&client), event_source_url.clone(), sse_tx, None);
 
     let mut sse_backoff_idx = 0usize;
 
@@ -717,7 +718,9 @@ async fn run_sse_stream(
     while let Some(item) = stream.next().await {
         match item {
             Err(_) => {
-                let _ = sse_tx.send(SseNotification::StreamEnded { last_event_id: current_event_id });
+                let _ = sse_tx.send(SseNotification::StreamEnded {
+                    last_event_id: current_event_id,
+                });
                 return;
             }
             Ok(frame) => {

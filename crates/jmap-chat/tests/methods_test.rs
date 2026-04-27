@@ -338,9 +338,7 @@ async fn chat_query_returns_typed_response() {
                 "limit": 50
             }, "r1"]]
         })))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(fixture("chat_query_response.json")),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("chat_query_response.json")))
         .mount(&server)
         .await;
 
@@ -360,8 +358,14 @@ async fn chat_query_returns_typed_response() {
         .expect("chat_query must succeed");
 
     // Oracle: RFC 8620 §5.5 — ids is non-empty, queryState is present
-    assert!(!result.ids.is_empty(), "ids must contain at least one entry");
-    assert!(!result.query_state.is_empty(), "query_state must not be empty");
+    assert!(
+        !result.ids.is_empty(),
+        "ids must contain at least one entry"
+    );
+    assert!(
+        !result.query_state.is_empty(),
+        "query_state must not be empty"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -475,7 +479,10 @@ async fn message_query_returns_typed_response() {
 
     // Oracle: RFC 8620 §5.5 — ids is non-empty, queryState is present
     assert!(!result.ids.is_empty(), "ids must have length > 0");
-    assert!(!result.query_state.is_empty(), "query_state must not be empty");
+    assert!(
+        !result.query_state.is_empty(),
+        "query_state must not be empty"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -546,7 +553,10 @@ async fn chat_contact_get_returns_typed_response() {
         .expect("chat_contact_get must succeed");
 
     // Oracle: JMAP Chat §5 — list has at least one entry
-    assert!(result.list.len() >= 1, "list must have at least one contact");
+    assert!(
+        result.list.len() >= 1,
+        "list must have at least one contact"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -629,11 +639,22 @@ async fn presence_status_get_returns_typed_response() {
 
 /// Oracle: RFC 8620 §5.2 — ReadPosition/changes response shape: oldState, newState,
 /// hasMoreChanges, updated list. Fixture hand-written from §5.2 /changes response definition.
+///
+/// Body matcher: verifies sinceState and that maxChanges:null is sent (null is
+/// a valid UnsignedInt|null per RFC 8620 §5.2 — server treats it as no limit).
 #[tokio::test]
 async fn read_position_changes_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["ReadPosition/changes", {
+                "accountId": "account1",
+                "sinceState": "rp-state-001",
+                "maxChanges": null
+            }, "r1"]]
+        })))
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_json(fixture("read_position_changes_response.json")),
@@ -667,8 +688,7 @@ async fn presence_status_set_returns_typed_response() {
 
     Mock::given(method("POST"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(fixture("presence_status_set_response.json")),
+            ResponseTemplate::new(200).set_body_json(fixture("presence_status_set_response.json")),
         )
         .mount(&server)
         .await;
@@ -771,8 +791,7 @@ async fn custom_emoji_changes_returns_typed_response() {
 
     Mock::given(method("POST"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(fixture("custom_emoji_changes_response.json")),
+            ResponseTemplate::new(200).set_body_json(fixture("custom_emoji_changes_response.json")),
         )
         .mount(&server)
         .await;
@@ -836,6 +855,10 @@ async fn custom_emoji_set_returns_typed_response() {
 
 /// Oracle: RFC 8620 §5.5 — CustomEmoji/query response shape: queryState, ids.
 /// Fixture hand-written from §5.5 /query response definition.
+///
+/// Body matcher: verifies that `filter` is absent (not null) when no
+/// filter_space_id is provided — RFC 8620 §5.5 does not require an explicit
+/// null filter and some servers may reject unknown null fields.
 #[tokio::test]
 async fn custom_emoji_query_returns_typed_response() {
     use jmap_chat::methods::CustomEmojiQueryInput;
@@ -843,6 +866,12 @@ async fn custom_emoji_query_returns_typed_response() {
     let server = MockServer::start().await;
 
     Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["CustomEmoji/query", {
+                "accountId": "account1"
+            }, "r1"]]
+        })))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(fixture("custom_emoji_query_response.json")),
         )
@@ -859,8 +888,14 @@ async fn custom_emoji_query_returns_typed_response() {
         .expect("custom_emoji_query must succeed");
 
     // Oracle: RFC 8620 §5.5 — ids is non-empty, queryState is present
-    assert!(!result.ids.is_empty(), "ids must contain at least one entry");
-    assert!(!result.query_state.is_empty(), "query_state must not be empty");
+    assert!(
+        !result.ids.is_empty(),
+        "ids must contain at least one entry"
+    );
+    assert!(
+        !result.query_state.is_empty(),
+        "query_state must not be empty"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -968,6 +1003,39 @@ async fn space_ban_set_returns_typed_response() {
 }
 
 // ---------------------------------------------------------------------------
+// Test 29: space_ban_changes — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.2 — SpaceBan/changes response shape: oldState, created list.
+/// Fixture hand-written from §5.2 /changes response definition.
+/// JMAP Chat §4.18 — SpaceBan/changes is a standard /changes method.
+#[tokio::test]
+async fn space_ban_changes_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("space_ban_changes_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .space_ban_changes(&test_session(&api_url), "ban-state-000", None)
+        .await
+        .expect("space_ban_changes must succeed");
+
+    // Oracle: RFC 8620 §5.2 — oldState echoes the sinceState argument, created has one entry
+    assert_eq!(result.old_state, "ban-state-000");
+    assert_eq!(result.created.len(), 1);
+    assert_eq!(result.created[0], "01HV5Z6QKWJ7N3P8R2X4YTMDBB");
+}
+
+// ---------------------------------------------------------------------------
 // Test 26: space_invite_get — happy path
 // ---------------------------------------------------------------------------
 
@@ -1010,8 +1078,7 @@ async fn space_invite_changes_returns_typed_response() {
 
     Mock::given(method("POST"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(fixture("space_invite_changes_response.json")),
+            ResponseTemplate::new(200).set_body_json(fixture("space_invite_changes_response.json")),
         )
         .mount(&server)
         .await;
