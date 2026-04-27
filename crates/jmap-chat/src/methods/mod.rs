@@ -172,6 +172,19 @@ pub struct TypingResponse {
 ///
 /// Use `Patch::from(v)` or `.into()` to construct `Set(v)`. Use `Default::default()`
 /// or `Patch::Keep` to leave the field unchanged.
+///
+/// # Serde usage
+///
+/// Fields of type `Patch<T>` **must** carry both attributes:
+/// ```ignore
+/// #[serde(default, skip_serializing_if = "Patch::is_keep")]
+/// pub my_field: Patch<String>,
+/// ```
+/// - `default`: absent JSON key → `Patch::Keep` (no change).
+/// - `skip_serializing_if`: omits the key from the output when the value is `Keep`.
+///
+/// Without `skip_serializing_if`, `Patch::Keep` serializes as `null`, which is
+/// indistinguishable from `Patch::Clear` on the wire and will clear the field.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum Patch<T> {
     #[default]
@@ -217,9 +230,15 @@ impl<T: serde::Serialize> Patch<T> {
 impl<T: serde::Serialize> serde::Serialize for Patch<T> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self {
-            // Keep should be skipped via #[serde(skip_serializing_if = "Patch::is_keep")]
-            // If called anyway, serialize as null (safe fallback).
-            Patch::Keep => s.serialize_none(),
+            Patch::Keep => {
+                // Keep must never reach the serializer — see doc-level serde usage note.
+                debug_assert!(
+                    false,
+                    "Patch::Keep must not be serialized directly; \
+                     add #[serde(skip_serializing_if = \"Patch::is_keep\")] to the field"
+                );
+                s.serialize_none()
+            }
             Patch::Clear => s.serialize_none(),
             Patch::Set(v) => v.serialize(s),
         }
@@ -228,8 +247,8 @@ impl<T: serde::Serialize> serde::Serialize for Patch<T> {
 
 impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Patch<T> {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        // Option::deserialize maps: JSON null → None, JSON value → Some(T)
-        // Combined with #[serde(default)] on the field, absent → Patch::Keep (default).
+        // JSON absent (via #[serde(default)]) → Keep (default).
+        // JSON null → Clear. JSON value → Set(v).
         Option::<T>::deserialize(d).map(|opt| match opt {
             None => Patch::Clear,
             Some(v) => Patch::Set(v),
