@@ -684,8 +684,8 @@ fn spawn_sse_task(
     last_event_id: Option<String>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let last_event_id = run_sse_stream(client, &event_source_url, &sse_tx, last_event_id).await;
-        let _ = sse_tx.send(SseNotification::StreamEnded { last_event_id });
+        // run_sse_stream sends all notifications (StreamEnded or AuthFailed) itself.
+        run_sse_stream(client, &event_source_url, &sse_tx, last_event_id).await;
     })
 }
 
@@ -694,7 +694,7 @@ async fn run_sse_stream(
     event_source_url: &str,
     sse_tx: &tokio::sync::mpsc::UnboundedSender<SseNotification>,
     last_event_id: Option<String>,
-) -> Option<String> {
+) {
     let stream = match client
         .subscribe_events(event_source_url, last_event_id.as_deref())
         .await
@@ -702,9 +702,12 @@ async fn run_sse_stream(
         Ok(s) => s,
         Err(ClientError::AuthFailed(_)) => {
             let _ = sse_tx.send(SseNotification::AuthFailed);
-            return last_event_id;
+            return; // do not send StreamEnded — main loop must not reconnect after auth failure
         }
-        Err(_) => return last_event_id,
+        Err(_) => {
+            let _ = sse_tx.send(SseNotification::StreamEnded { last_event_id });
+            return;
+        }
     };
 
     let mut current_event_id = last_event_id;
@@ -713,21 +716,26 @@ async fn run_sse_stream(
 
     while let Some(item) = stream.next().await {
         match item {
-            Err(_) => return current_event_id,
+            Err(_) => {
+                let _ = sse_tx.send(SseNotification::StreamEnded { last_event_id: current_event_id });
+                return;
+            }
             Ok(frame) => {
                 if let Some(id) = frame.id {
                     current_event_id = Some(id);
                 }
                 if let SseEvent::StateChange { changed } = frame.event {
                     if sse_tx.send(SseNotification::StateChange(changed)).is_err() {
-                        return current_event_id;
+                        return; // receiver dropped; no point sending StreamEnded
                     }
                 }
             }
         }
     }
 
-    current_event_id
+    let _ = sse_tx.send(SseNotification::StreamEnded {
+        last_event_id: current_event_id,
+    });
 }
 
 // ---------------------------------------------------------------------------
