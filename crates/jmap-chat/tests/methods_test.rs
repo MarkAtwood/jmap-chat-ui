@@ -8,7 +8,7 @@
 
 use jmap_chat::client::JmapChatClient;
 use jmap_chat::error::ClientError;
-use jmap_chat::methods::GetResponse;
+use jmap_chat::methods::{GetResponse, MessageCreateInput, MessageQueryInput};
 use wiremock::matchers::method;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -97,12 +97,14 @@ async fn message_create_returns_typed_response() {
     let result = client
         .message_create(
             &test_session(&api_url),
-            "client-ulid-001",
-            "01HV5Z6QKWJ7N3P8R2X4YTMD3G",
-            "Hello, world!",
-            "text/plain",
-            "2024-01-02T12:00:00Z",
-            None,
+            &MessageCreateInput {
+                client_id: "client-ulid-001",
+                chat_id: "01HV5Z6QKWJ7N3P8R2X4YTMD3G",
+                body: "Hello, world!",
+                body_type: "text/plain",
+                sent_at: "2024-01-02T12:00:00Z",
+                reply_to: None,
+            },
         )
         .await
         .expect("message_create must succeed");
@@ -227,11 +229,7 @@ async fn message_query_rejects_invalid_filter() {
     let err_none = client
         .message_query(
             &test_session("http://127.0.0.1:1/api"),
-            None,
-            None,
-            None,
-            None,
-            None,
+            &MessageQueryInput::default(),
         )
         .await
         .expect_err("no filter must be rejected");
@@ -244,11 +242,10 @@ async fn message_query_rejects_invalid_filter() {
     let err_false = client
         .message_query(
             &test_session("http://127.0.0.1:1/api"),
-            None,
-            Some(false),
-            None,
-            None,
-            None,
+            &MessageQueryInput {
+                has_mention: Some(false),
+                ..Default::default()
+            },
         )
         .await
         .expect_err("has_mention=false without chat_id must be rejected");

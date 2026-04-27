@@ -22,6 +22,7 @@ use futures::StreamExt;
 
 use jmap_chat::client::JmapChatClient;
 use jmap_chat::error::ClientError;
+use jmap_chat::methods::{MessageCreateInput, MessageQueryInput};
 use jmap_chat::sse::SseEvent;
 
 use crate::event::{AppCommand, AppEvent, ConnectionStatus};
@@ -272,12 +273,14 @@ pub async fn run(
                         match client
                             .message_create(
                                 &session,
-                                &client_id,
-                                &chat_id,
-                                &body,
-                                "text/plain",
-                                &sent_at,
-                                None,
+                                &MessageCreateInput {
+                                    client_id: &client_id,
+                                    chat_id: &chat_id,
+                                    body: &body,
+                                    body_type: "text/plain",
+                                    sent_at: &sent_at,
+                                    reply_to: None,
+                                },
                             )
                             .await
                         {
@@ -495,11 +498,11 @@ async fn load_messages_for_chat(
     let query = client
         .message_query(
             session,
-            Some(chat_id),
-            None,
-            None,
-            None,
-            Some(100),
+            &MessageQueryInput {
+                chat_id: Some(chat_id),
+                limit: Some(100),
+                ..Default::default()
+            },
         )
         .await?;
 

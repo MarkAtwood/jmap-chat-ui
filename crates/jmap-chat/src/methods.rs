@@ -82,6 +82,31 @@ pub struct SetError {
 }
 
 // ---------------------------------------------------------------------------
+// Input types for methods with many optional parameters
+// ---------------------------------------------------------------------------
+
+/// Input parameters for [`JmapChatClient::message_query`].
+#[derive(Debug, Default)]
+pub struct MessageQueryInput<'a> {
+    pub chat_id: Option<&'a str>,
+    pub has_mention: Option<bool>,
+    pub has_attachment: Option<bool>,
+    pub position: Option<u64>,
+    pub limit: Option<u64>,
+}
+
+/// Input parameters for [`JmapChatClient::message_create`].
+#[derive(Debug)]
+pub struct MessageCreateInput<'a> {
+    pub client_id: &'a str,
+    pub chat_id: &'a str,
+    pub body: &'a str,
+    pub body_type: &'a str,
+    pub sent_at: &'a str,
+    pub reply_to: Option<&'a str>,
+}
+
+// ---------------------------------------------------------------------------
 // Method implementations on JmapChatClient
 // ---------------------------------------------------------------------------
 
@@ -216,17 +241,12 @@ impl crate::client::JmapChatClient {
     /// recent message IDs. Callers that display messages chronologically must
     /// reverse or re-sort ascending after fetching. Without an explicit sort,
     /// result order is undefined by the spec.
-    #[allow(clippy::too_many_arguments)]
     pub async fn message_query(
         &self,
         session: &crate::jmap::Session,
-        chat_id: Option<&str>,
-        has_mention: Option<bool>,
-        has_attachment: Option<bool>,
-        position: Option<u64>,
-        limit: Option<u64>,
+        input: &MessageQueryInput<'_>,
     ) -> Result<QueryResponse, crate::error::ClientError> {
-        if chat_id.is_none() && has_mention != Some(true) {
+        if input.chat_id.is_none() && input.has_mention != Some(true) {
             return Err(crate::error::ClientError::InvalidArgument(
                 "message_query: chat_id or has_mention=true must be provided".into(),
             ));
@@ -236,13 +256,13 @@ impl crate::client::JmapChatClient {
             .chat_account_id()
             .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
         let mut filter = serde_json::Map::new();
-        if let Some(id) = chat_id {
+        if let Some(id) = input.chat_id {
             filter.insert("chatId".into(), id.into());
         }
-        if let Some(m) = has_mention {
+        if let Some(m) = input.has_mention {
             filter.insert("hasMention".into(), m.into());
         }
-        if let Some(a) = has_attachment {
+        if let Some(a) = input.has_attachment {
             filter.insert("hasAttachment".into(), a.into());
         }
         let filter_val = if filter.is_empty() {
@@ -254,8 +274,8 @@ impl crate::client::JmapChatClient {
             "accountId": account_id,
             "filter": filter_val,
             "sort": [{"property": "sentAt", "isAscending": false}],
-            "position": position,
-            "limit": limit,
+            "position": input.position,
+            "limit": input.limit,
         });
         let req = build_request("Message/query", args);
         let resp = self.call(api_url, &req).await?;
@@ -288,33 +308,27 @@ impl crate::client::JmapChatClient {
     /// `client_id` is a caller-supplied ULID used as the creation key. The server
     /// maps it to the server-assigned Message id in `SetResponse.created`.
     /// Only the `create` operation is implemented here; update/destroy are Phase 4.
-    #[allow(clippy::too_many_arguments)]
     pub async fn message_create(
         &self,
         session: &crate::jmap::Session,
-        client_id: &str,
-        chat_id: &str,
-        body: &str,
-        body_type: &str,
-        sent_at: &str,
-        reply_to: Option<&str>,
+        input: &MessageCreateInput<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
         let api_url = &session.api_url;
         let account_id = session
             .chat_account_id()
             .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
         let mut create_obj = serde_json::json!({
-            "chatId": chat_id,
-            "body": body,
-            "bodyType": body_type,
-            "sentAt": sent_at,
+            "chatId": input.chat_id,
+            "body": input.body,
+            "bodyType": input.body_type,
+            "sentAt": input.sent_at,
         });
-        if let Some(rt) = reply_to {
+        if let Some(rt) = input.reply_to {
             create_obj["replyTo"] = rt.into();
         }
         let args = serde_json::json!({
             "accountId": account_id,
-            "create": { client_id: create_obj },
+            "create": { input.client_id: create_obj },
         });
         let req = build_request("Message/set", args);
         let resp = self.call(api_url, &req).await?;
