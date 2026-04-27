@@ -156,14 +156,20 @@ impl crate::client::JmapChatClient {
     }
 
     /// Create a PushSubscription with the optional `chatPush` extension
-    /// (RFC 8620 §7.2 / draft-atwood-jmap-chat-push-00 §3.1).
+    /// (RFC 8620 §7.2 / draft-atwood-jmap-chat-push-00 §3).
     ///
     /// PushSubscriptions are account-independent: no `accountId` is included
-    /// in the request (RFC 8620 §7.2). The `using` array includes
-    /// `urn:ietf:params:jmap:chat:push` when `chat_push` is present.
+    /// in the request (RFC 8620 §7.2). When `input.chat_push` is `Some`, the
+    /// `using` array includes `urn:ietf:params:jmap:chat:push` (RFC 8620 §3.3:
+    /// capabilities MUST only be declared when used); otherwise `urn:ietf:params:jmap:core`
+    /// alone is used.
+    ///
+    /// **Scope**: this method issues a `create` operation only. RFC 8620 §7.2
+    /// also defines `update` (e.g., extending `expires`) and `destroy` (unsubscribe);
+    /// those are not yet implemented.
     ///
     /// `client_id` is mapped to the server-assigned PushSubscription id in
-    /// `SetResponse.created`.
+    /// `PushSubscriptionSetResponse.created`.
     pub async fn push_subscription_set(
         &self,
         session: &crate::jmap::Session,
@@ -185,7 +191,17 @@ impl crate::client::JmapChatClient {
                     .collect(),
             );
         }
+        let has_chat_push = input.chat_push.is_some();
         if let Some(cp) = input.chat_push {
+            let mut seen = std::collections::HashSet::new();
+            for (account_id, _) in cp {
+                if !seen.insert(*account_id) {
+                    return Err(crate::error::ClientError::InvalidArgument(format!(
+                        "push_subscription_set: duplicate accountId '{}' in chat_push",
+                        account_id
+                    )));
+                }
+            }
             let mut chat_push_map = serde_json::Map::new();
             for (account_id, config) in cp {
                 chat_push_map.insert(
@@ -198,11 +214,13 @@ impl crate::client::JmapChatClient {
         let args = serde_json::json!({
             "create": { input.client_id: create_obj }
         });
+        // RFC 8620 §3.3: only declare the chatPush capability when it is actually used.
+        let mut using = vec!["urn:ietf:params:jmap:core".to_string()];
+        if has_chat_push {
+            using.push("urn:ietf:params:jmap:chat:push".to_string());
+        }
         let req = crate::jmap::JmapRequest {
-            using: vec![
-                "urn:ietf:params:jmap:core".to_string(),
-                "urn:ietf:params:jmap:chat:push".to_string(),
-            ],
+            using,
             method_calls: vec![("PushSubscription/set".to_string(), args, "r1".to_string())],
         };
         let resp = self.call(api_url, &req).await?;

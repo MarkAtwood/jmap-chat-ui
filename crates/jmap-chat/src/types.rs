@@ -1077,6 +1077,12 @@ pub struct ChatPushConfig {
 
 /// One message entry in a `ChatMessagePush` payload.
 /// Spec: draft-atwood-jmap-chat-push-00 §4.2
+///
+/// `body_snippet` is absent when `encrypted` is `true` (spec §4.2 MUST).
+/// This is a server-enforced invariant; the type does not reject a misbehaving
+/// server that sends both — callers should treat `body_snippet` as unreliable
+/// when `encrypted` is `true`.
+#[non_exhaustive]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessageEntry {
@@ -1087,18 +1093,14 @@ pub struct ChatMessageEntry {
     /// Kind of the Chat: `"direct"`, `"group"`, or `"channel"`.
     pub chat_kind: String,
     /// Display name of the Chat. Present for group and channel chats.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub chat_name: Option<String>,
     /// For channel chats: id of the containing Space.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub space_id: Option<String>,
     /// For channel chats: display name of the containing Space.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub space_name: Option<String>,
     /// ChatContact.id of the message sender (authoritative identity).
     pub sender_id: String,
     /// Sender display name at push-generation time (snapshot; not authoritative).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub sender_display_name: Option<String>,
     /// Sender's claimed composition time.
     pub sent_at: UTCDate,
@@ -1109,12 +1111,12 @@ pub struct ChatMessageEntry {
     /// `true` if the message body is end-to-end encrypted; `bodySnippet` is absent when `true`.
     pub encrypted: bool,
     /// Truncated plaintext rendering of the message body. Absent when `encrypted` is `true`.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub body_snippet: Option<String>,
 }
 
 /// Push payload delivered directly to the registered push endpoint.
 /// Spec: draft-atwood-jmap-chat-push-00 §4.1
+#[non_exhaustive]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessagePush {
