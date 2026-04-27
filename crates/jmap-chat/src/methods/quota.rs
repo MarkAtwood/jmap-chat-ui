@@ -5,6 +5,8 @@
 
 use serde::Deserialize;
 
+use crate::jmap::Id;
+
 use super::GetResponse;
 
 /// A single JMAP Quota object (RFC 8621 §2).
@@ -18,7 +20,7 @@ use super::GetResponse;
 #[serde(rename_all = "camelCase")]
 pub struct Quota {
     /// Server-assigned identifier.
-    pub id: String,
+    pub id: Id,
     /// Human-readable name for this quota (e.g. "Message Storage").
     pub name: String,
     /// Scope of the quota: `"account"`, `"domain"`, or `"global"`.

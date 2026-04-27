@@ -526,7 +526,7 @@ pub struct ChatCapability {
     /// Maximum number of categories per Space.
     pub max_categories_per_space: u64,
     /// MIME types accepted in `bodyType`; always includes `"text/plain"`.
-    pub supported_body_types: Vec<String>,
+    pub supported_body_types: Vec<crate::types::BodyType>,
     /// Whether the server supports the optional thread model.
     pub supports_threads: bool,
 }
@@ -727,7 +727,10 @@ mod tests {
         assert_eq!(cap.max_categories_per_space, 25);
         assert_eq!(
             cap.supported_body_types,
-            vec!["text/plain", "text/markdown"]
+            vec![
+                crate::types::BodyType::Plain,
+                crate::types::BodyType::Markdown
+            ]
         );
         assert!(cap.supports_threads);
     }

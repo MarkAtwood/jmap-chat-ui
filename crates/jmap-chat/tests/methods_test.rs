@@ -10,9 +10,10 @@ use jmap_chat::client::JmapChatClient;
 use jmap_chat::error::ClientError;
 use jmap_chat::methods::{
     AddMemberInput, ChatContactPatch, ChatContactQueryInput, ChatCreateInput, ChatPatch,
-    ChatQueryInput, GetResponse, MessageCreateInput, MessagePatch, MessageQueryInput,
-    PresenceStatusPatch, PushSubscriptionCreateInput, ReactionChange, SpaceBanCreateInput,
-    SpaceCreateInput, SpaceInviteCreateInput, SpaceJoinInput, SpacePatch, SpaceQueryInput,
+    ChatQueryInput, ContactSortProperty, GetResponse, MessageCreateInput, MessagePatch,
+    MessageQueryInput, PresenceStatusPatch, PushSubscriptionCreateInput, ReactionChange,
+    SpaceBanCreateInput, SpaceCreateInput, SpaceInviteCreateInput, SpaceJoinInput, SpacePatch,
+    SpaceQueryInput,
 };
 use jmap_chat::types::OwnerPresence;
 use wiremock::matchers::{body_json, method};
@@ -1906,7 +1907,7 @@ async fn chat_contact_query_filters_returns_typed_response() {
             filter_presence: None,
             position: None,
             limit: None,
-            sort_property: Some("lastSeenAt"),
+            sort_property: Some(ContactSortProperty::LastSeenAt),
             sort_ascending: Some(true),
         })
         .await

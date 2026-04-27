@@ -8,6 +8,8 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+use crate::jmap::Id;
+
 pub mod blob;
 pub mod chat;
 pub mod contact;
@@ -27,21 +29,21 @@ pub mod space_invite;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetResponse<T> {
-    pub account_id: String,
+    pub account_id: Id,
     pub state: String,
     pub list: Vec<T>,
-    pub not_found: Option<Vec<String>>,
+    pub not_found: Option<Vec<Id>>,
 }
 
 /// RFC 8620 §5.5 — /query response.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryResponse {
-    pub account_id: String,
+    pub account_id: Id,
     pub query_state: String,
     pub can_calculate_changes: bool,
     pub position: u64,
-    pub ids: Vec<String>,
+    pub ids: Vec<Id>,
     pub total: Option<u64>,
     pub limit: Option<u64>,
 }
@@ -50,13 +52,13 @@ pub struct QueryResponse {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangesResponse {
-    pub account_id: String,
+    pub account_id: Id,
     pub old_state: String,
     pub new_state: String,
     pub has_more_changes: bool,
-    pub created: Vec<String>,
-    pub updated: Vec<String>,
-    pub destroyed: Vec<String>,
+    pub created: Vec<Id>,
+    pub updated: Vec<Id>,
+    pub destroyed: Vec<Id>,
 }
 
 /// RFC 8620 §5.3 — /set response.
@@ -73,12 +75,12 @@ pub struct ChangesResponse {
 #[serde(rename_all = "camelCase")]
 #[serde(bound(deserialize = "T: serde::de::DeserializeOwned"))]
 pub struct SetResponse<T = serde_json::Value> {
-    pub account_id: String,
+    pub account_id: Id,
     pub old_state: Option<String>,
     pub new_state: String,
     pub created: Option<HashMap<String, T>>,
     pub updated: Option<HashMap<String, T>>,
-    pub destroyed: Option<Vec<String>>,
+    pub destroyed: Option<Vec<Id>>,
     pub not_created: Option<HashMap<String, SetError>>,
     pub not_updated: Option<HashMap<String, SetError>>,
     pub not_destroyed: Option<HashMap<String, SetError>>,
@@ -93,7 +95,7 @@ pub struct SetResponse<T = serde_json::Value> {
 #[serde(rename_all = "camelCase")]
 pub struct PushSubscriptionCreateResponse {
     #[serde(default)]
-    pub account_id: Option<String>,
+    pub account_id: Option<Id>,
     pub created: Option<HashMap<String, serde_json::Value>>,
     #[serde(default)]
     pub not_created: Option<HashMap<String, SetError>>,
@@ -119,11 +121,11 @@ pub struct SetError {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryChangesResponse {
-    pub account_id: String,
+    pub account_id: Id,
     pub old_query_state: String,
     pub new_query_state: String,
     pub total: Option<u64>,
-    pub removed: Vec<String>,
+    pub removed: Vec<Id>,
     pub added: Vec<AddedItem>,
 }
 
@@ -131,7 +133,7 @@ pub struct QueryChangesResponse {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddedItem {
-    pub id: String,
+    pub id: Id,
     pub index: u64,
 }
 
@@ -141,7 +143,7 @@ pub struct AddedItem {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TypingResponse {
-    pub account_id: String,
+    pub account_id: Id,
 }
 
 // ---------------------------------------------------------------------------
@@ -348,18 +350,30 @@ pub struct ChatContactPatch<'a> {
     pub display_name: Patch<&'a str>,
 }
 
+/// Sort property for [`JmapChatClient::chat_contact_query`].
+///
+/// Spec: draft-atwood-jmap-chat-00 §4.3
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ContactSortProperty {
+    LastSeenAt,
+    Login,
+    LastActiveAt,
+}
+
 /// Input parameters for [`JmapChatClient::chat_contact_query`].
 ///
 /// All fields are optional; an empty filter shows all contacts.
 #[derive(Debug, Default)]
-pub struct ChatContactQueryInput<'a> {
+pub struct ChatContactQueryInput {
     pub filter_blocked: Option<bool>,
-    /// Filter to contacts with this exact presence state string.
-    pub filter_presence: Option<&'a str>,
+    /// Filter to contacts with this exact presence state.
+    pub filter_presence: Option<crate::types::OwnerPresence>,
     pub position: Option<u64>,
     pub limit: Option<u64>,
-    /// Sort property: `"lastSeenAt"`, `"login"`, or `"lastActiveAt"`.
-    pub sort_property: Option<&'a str>,
+    /// Sort property: one of `ContactSortProperty::LastSeenAt`, `Login`, `LastActiveAt`.
+    pub sort_property: Option<ContactSortProperty>,
     /// When `Some(false)` or `None`, sort descending. `Some(true)` sorts ascending.
     pub sort_ascending: Option<bool>,
 }
@@ -402,8 +416,8 @@ pub enum SpaceJoinInput<'a> {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpaceJoinResponse {
-    pub account_id: String,
-    pub space_id: String,
+    pub account_id: Id,
+    pub space_id: Id,
 }
 
 /// One entry in the `addMembers` patch key for [`JmapChatClient::chat_update`].
@@ -670,20 +684,13 @@ fn build_request(
     args: serde_json::Value,
 ) -> (&'static str, crate::jmap::JmapRequest) {
     let req = crate::jmap::JmapRequest {
-        using: chat_using().to_vec(),
+        using: vec![
+            "urn:ietf:params:jmap:core".to_string(),
+            "urn:ietf:params:jmap:chat".to_string(),
+        ],
         method_calls: vec![(method_name.to_string(), args, CALL_ID.to_string())],
     };
     (CALL_ID, req)
-}
-
-fn chat_using() -> &'static [String] {
-    static CHAT_USING_VEC: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
-    CHAT_USING_VEC.get_or_init(|| {
-        vec![
-            "urn:ietf:params:jmap:core".to_string(),
-            "urn:ietf:params:jmap:chat".to_string(),
-        ]
-    })
 }
 
 /// Resolve an optional caller-supplied client ID, generating a ULID if absent.

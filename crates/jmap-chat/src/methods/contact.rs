@@ -74,15 +74,15 @@ impl super::SessionClient<'_> {
     /// `"lastSeenAt"`, `"login"`, `"lastActiveAt"`.
     pub async fn chat_contact_query(
         &self,
-        input: &ChatContactQueryInput<'_>,
+        input: &ChatContactQueryInput,
     ) -> Result<QueryResponse, crate::error::ClientError> {
         let (api_url, account_id) = self.session_parts()?;
         let mut filter = serde_json::Map::new();
         if let Some(b) = input.filter_blocked {
             filter.insert("blocked".into(), b.into());
         }
-        if let Some(p) = input.filter_presence {
-            filter.insert("presence".into(), p.into());
+        if let Some(p) = &input.filter_presence {
+            filter.insert("presence".into(), serde_json::to_value(p)?);
         }
         let filter_val = if filter.is_empty() {
             serde_json::Value::Null
@@ -93,9 +93,10 @@ impl super::SessionClient<'_> {
             "accountId": account_id,
             "filter": filter_val,
         });
-        if let Some(sp) = input.sort_property {
+        if let Some(sp) = &input.sort_property {
+            let property = serde_json::to_value(sp)?;
             args["sort"] = serde_json::json!([{
-                "property": sp,
+                "property": property,
                 "isAscending": input.sort_ascending.unwrap_or(false),
             }]);
         }

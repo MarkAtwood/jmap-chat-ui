@@ -605,7 +605,7 @@ async fn load_chats(
     ctx: &egui::Context,
 ) -> Result<String, ClientError> {
     const PAGE: u64 = 200;
-    let mut all_ids: Vec<String> = Vec::new();
+    let mut all_ids: Vec<jmap_chat::jmap::Id> = Vec::new();
     let mut position = 0u64;
     loop {
         let query = client
@@ -627,7 +627,7 @@ async fn load_chats(
 
     // Always call chat_get even when ids is empty, so we get the current state
     // string and can use Chat/changes for future delta sync.
-    let id_refs: Vec<&str> = all_ids.iter().map(String::as_str).collect();
+    let id_refs: Vec<&str> = all_ids.iter().map(|id| id.as_str()).collect();
     let resp = client
         .with_session(session)
         .chat_get(Some(&id_refs), None)
@@ -660,7 +660,7 @@ async fn load_messages_for_chat(
     let mut messages = if query.ids.is_empty() {
         Vec::new()
     } else {
-        let id_refs: Vec<&str> = query.ids.iter().map(String::as_str).collect();
+        let id_refs: Vec<&str> = query.ids.iter().map(|id| id.as_str()).collect();
         client
             .with_session(session)
             .message_get(&id_refs, None)
@@ -998,7 +998,7 @@ async fn chat_delta_sync(
         .created
         .iter()
         .chain(changes.updated.iter())
-        .map(String::as_str)
+        .map(|id| id.as_str())
         .collect();
 
     let updated_chats = if id_refs.is_empty() {
@@ -1027,7 +1027,11 @@ async fn chat_delta_sync(
             ctx,
             AppEvent::ChatsDelta {
                 created_or_updated: updated_chats,
-                destroyed: changes.destroyed,
+                destroyed: changes
+                    .destroyed
+                    .into_iter()
+                    .map(|id| id.to_string())
+                    .collect(),
             },
         );
     }

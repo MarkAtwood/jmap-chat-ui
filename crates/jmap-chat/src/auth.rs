@@ -26,6 +26,7 @@ pub trait AuthProvider: Send + Sync {
 // ---------------------------------------------------------------------------
 
 /// No authentication: default [`reqwest::Client`], no `Authorization` header.
+#[derive(Debug)]
 pub struct NoneAuth;
 
 impl AuthProvider for NoneAuth {
@@ -67,6 +68,14 @@ impl BearerAuth {
         }
         let header_value = HeaderValue::from_str(&format!("Bearer {token}"))?;
         Ok(Self { header_value })
+    }
+}
+
+impl std::fmt::Debug for BearerAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BearerAuth")
+            .field("token", &"[REDACTED]")
+            .finish()
     }
 }
 
@@ -114,6 +123,14 @@ impl BasicAuth {
     }
 }
 
+impl std::fmt::Debug for BasicAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BasicAuth")
+            .field("credentials", &"[REDACTED]")
+            .finish()
+    }
+}
+
 impl AuthProvider for BasicAuth {
     fn build_client(&self) -> Result<reqwest::Client, ClientError> {
         default_reqwest_client()
@@ -131,6 +148,7 @@ impl AuthProvider for BasicAuth {
 /// Custom CA trust root (DER-encoded). No `Authorization` header is injected.
 ///
 /// Used when the server presents a certificate signed by a private CA (e.g. kith).
+#[derive(Debug)]
 pub struct CustomCaAuth {
     der_cert: Vec<u8>,
 }
