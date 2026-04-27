@@ -68,4 +68,9 @@ pub enum ClientError {
     /// retriable (transient network failure) or permanent (TLS config error).
     #[error("WebSocket error: {0}")]
     WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
+
+    /// The server rejected the request because slow mode is active for the chat.
+    /// The caller should wait until `retry_after` before attempting to send again.
+    #[error("rate limited: retry after {retry_after}")]
+    RateLimited { retry_after: crate::jmap::UTCDate },
 }

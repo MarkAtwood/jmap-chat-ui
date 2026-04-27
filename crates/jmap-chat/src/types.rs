@@ -1659,4 +1659,36 @@ mod tests {
             "bodySnippet must be absent when encrypted"
         );
     }
+
+    /// Oracle: spec §4.10 — deviceDeliveredAt round-trips as Option<UTCDate>.
+    /// Fixture hand-written from spec field definition.
+    #[test]
+    fn test_delivery_receipt_device_delivered_at_round_trips() {
+        let json = fixture("delivery_receipt_with_device.json");
+        let receipt: DeliveryReceipt = serde_json::from_str(&json).expect("must parse");
+        assert_eq!(
+            receipt.delivered_at.as_ref().map(|d| d.as_str()),
+            Some("2024-01-01T10:00:00Z"),
+        );
+        assert_eq!(
+            receipt.device_delivered_at.as_ref().map(|d| d.as_str()),
+            Some("2024-01-01T10:00:02Z"),
+        );
+        assert_eq!(
+            receipt.read_at.as_ref().map(|d| d.as_str()),
+            Some("2024-01-01T10:05:00Z"),
+        );
+    }
+
+    /// Oracle: spec §4.20 — receiptSharing MUST default to true when absent from JSON.
+    /// Fixture deliberately omits the field; serde(default = "default_true") provides it.
+    #[test]
+    fn test_presence_status_receipt_sharing_defaults_true() {
+        let json = fixture("presence_status_receipt_sharing.json");
+        let ps: PresenceStatus = serde_json::from_str(&json).expect("must parse");
+        assert!(
+            ps.receipt_sharing,
+            "absent receiptSharing must default to true"
+        );
+    }
 }

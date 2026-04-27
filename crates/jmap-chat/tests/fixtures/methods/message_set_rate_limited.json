@@ -1,0 +1,15 @@
+{
+    "methodResponses": [["Message/set", {
+        "accountId": "account1",
+        "oldState": "state-msg-001",
+        "newState": "state-msg-001",
+        "notCreated": {
+            "client-id-001": {
+                "type": "rateLimited",
+                "serverRetryAfter": "2024-01-01T10:01:00Z",
+                "description": "Slow mode is active (30s)"
+            }
+        }
+    }, "r1"]],
+    "sessionState": "sess-abc"
+}

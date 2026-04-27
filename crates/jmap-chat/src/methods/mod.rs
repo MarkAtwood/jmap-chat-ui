@@ -106,6 +106,10 @@ pub struct SetError {
     #[serde(rename = "type")]
     pub error_type: String,
     pub description: Option<String>,
+    /// Present only when `error_type == "rateLimited"` (JMAP Chat slow-mode).
+    /// Callers should wait until this time before retrying.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_retry_after: Option<crate::jmap::UTCDate>,
 }
 
 /// RFC 8620 §5.6 — /queryChanges response.
@@ -162,6 +166,10 @@ pub struct MessageQueryInput<'a> {
     pub has_attachment: Option<bool>,
     pub text: Option<&'a str>,
     pub thread_root_id: Option<&'a str>,
+    /// Only include messages received after this time (exclusive).
+    pub after: Option<&'a crate::jmap::UTCDate>,
+    /// Only include messages received before this time (exclusive).
+    pub before: Option<&'a crate::jmap::UTCDate>,
     pub position: Option<u64>,
     pub limit: Option<u64>,
     /// Sort by `sentAt` ascending (oldest first) when `true`.
@@ -407,6 +415,18 @@ pub struct ChatCreateGroupInput<'a> {
     pub description: Option<&'a str>,
     pub avatar_blob_id: Option<&'a str>,
     pub message_expiry_seconds: Option<u64>,
+}
+
+/// Input parameters for [`JmapChatClient::chat_create_channel`].
+#[derive(Debug)]
+pub struct ChatCreateChannelInput<'a> {
+    /// Caller-supplied ULID used as the creation key in the JMAP create map.
+    pub client_id: &'a str,
+    /// The Space this channel belongs to.
+    pub space_id: &'a str,
+    /// Display name for the channel.
+    pub name: &'a str,
+    pub description: Option<&'a str>,
 }
 
 /// Input parameters for [`JmapChatClient::chat_set_update`].

@@ -75,6 +75,12 @@ impl crate::client::JmapChatClient {
         if let Some(tid) = input.thread_root_id {
             filter.insert("threadRootId".into(), tid.into());
         }
+        if let Some(a) = input.after {
+            filter.insert("after".into(), a.as_str().into());
+        }
+        if let Some(b) = input.before {
+            filter.insert("before".into(), b.as_str().into());
+        }
         let filter_val = if filter.is_empty() {
             serde_json::Value::Null
         } else {
@@ -143,7 +149,20 @@ impl crate::client::JmapChatClient {
         });
         let (call_id, req) = super::build_request("Message/set", args);
         let resp = self.call(api_url, &req).await?;
-        crate::client::extract_response(resp, call_id)
+        let set_resp: SetResponse = crate::client::extract_response(resp, call_id)?;
+        if let Some(not_created) = &set_resp.not_created {
+            if let Some(err) = not_created.get(input.client_id) {
+                if err.error_type == "rateLimited" {
+                    let retry_after = err.server_retry_after.clone().ok_or_else(|| {
+                        crate::error::ClientError::Parse(
+                            "rateLimited SetError missing serverRetryAfter".into(),
+                        )
+                    })?;
+                    return Err(crate::error::ClientError::RateLimited { retry_after });
+                }
+            }
+        }
+        Ok(set_resp)
     }
 
     /// Update Message properties (RFC 8620 §5.3 / JMAP Chat §4.5 Message/set).

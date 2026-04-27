@@ -1,0 +1,9 @@
+{
+    "methodResponses": [["Chat/set", {
+        "accountId": "account1",
+        "oldState": "state-chat-001",
+        "newState": "state-chat-002",
+        "destroyed": ["01HV5Z6QKWJ7N3P8R2X4YTMDCH"]
+    }, "r1"]],
+    "sessionState": "sess-abc"
+}

@@ -1,7 +1,7 @@
 use super::{
-    AddMemberInput, ChangesResponse, ChatCreateDirectInput, ChatCreateGroupInput, ChatQueryInput,
-    ChatUpdateInput, GetResponse, QueryChangesResponse, QueryResponse, SetResponse, TypingResponse,
-    UpdateMemberRoleInput,
+    AddMemberInput, ChangesResponse, ChatCreateChannelInput, ChatCreateDirectInput,
+    ChatCreateGroupInput, ChatQueryInput, ChatUpdateInput, GetResponse, QueryChangesResponse,
+    QueryResponse, SetResponse, TypingResponse, UpdateMemberRoleInput,
 };
 
 impl crate::client::JmapChatClient {
@@ -307,6 +307,54 @@ impl crate::client::JmapChatClient {
         let args = serde_json::json!({
             "accountId": account_id,
             "update": { input.id: serde_json::Value::Object(patch) },
+        });
+        let (call_id, req) = super::build_request("Chat/set", args);
+        let resp = self.call(api_url, &req).await?;
+        crate::client::extract_response(resp, call_id)
+    }
+
+    /// Create a channel chat inside a Space (JMAP Chat §Chat/set create/channel).
+    pub async fn chat_create_channel(
+        &self,
+        session: &crate::jmap::Session,
+        input: &ChatCreateChannelInput<'_>,
+    ) -> Result<SetResponse, crate::error::ClientError> {
+        let (api_url, account_id) = Self::session_parts(session)?;
+        let mut create_obj = serde_json::json!({
+            "kind": "channel",
+            "spaceId": input.space_id,
+            "name": input.name,
+        });
+        if let Some(d) = input.description {
+            create_obj["description"] = d.into();
+        }
+        let args = serde_json::json!({
+            "accountId": account_id,
+            "create": { input.client_id: create_obj },
+        });
+        let (call_id, req) = super::build_request("Chat/set", args);
+        let resp = self.call(api_url, &req).await?;
+        crate::client::extract_response(resp, call_id)
+    }
+
+    /// Destroy Chat objects (RFC 8620 §5.3 / Chat/set destroy).
+    ///
+    /// Permanently removes the listed Chat IDs from the account.
+    /// `ids` must be non-empty; the guard fires before any network call.
+    pub async fn chat_set_destroy(
+        &self,
+        session: &crate::jmap::Session,
+        ids: &[&str],
+    ) -> Result<SetResponse, crate::error::ClientError> {
+        if ids.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "chat_set_destroy: ids may not be empty".into(),
+            ));
+        }
+        let (api_url, account_id) = Self::session_parts(session)?;
+        let args = serde_json::json!({
+            "accountId": account_id,
+            "destroy": ids,
         });
         let (call_id, req) = super::build_request("Chat/set", args);
         let resp = self.call(api_url, &req).await?;

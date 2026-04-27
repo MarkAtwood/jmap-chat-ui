@@ -9,11 +9,11 @@
 use jmap_chat::client::JmapChatClient;
 use jmap_chat::error::ClientError;
 use jmap_chat::methods::{
-    AddMemberInput, ChatContactQueryInput, ChatContactSetInput, ChatCreateDirectInput,
-    ChatCreateGroupInput, ChatQueryInput, ChatUpdateInput, GetResponse, MessageCreateInput,
-    MessageQueryInput, MessageUpdateInput, PresenceStatusSetInput, PushSubscriptionCreateInput,
-    ReactionChange, SpaceBanCreateInput, SpaceCreateInput, SpaceInviteCreateInput, SpaceJoinInput,
-    SpaceQueryInput, SpaceUpdateInput,
+    AddMemberInput, ChatContactQueryInput, ChatContactSetInput, ChatCreateChannelInput,
+    ChatCreateDirectInput, ChatCreateGroupInput, ChatQueryInput, ChatUpdateInput, GetResponse,
+    MessageCreateInput, MessageQueryInput, MessageUpdateInput, PresenceStatusSetInput,
+    PushSubscriptionCreateInput, ReactionChange, SpaceBanCreateInput, SpaceCreateInput,
+    SpaceInviteCreateInput, SpaceJoinInput, SpaceQueryInput, SpaceUpdateInput,
 };
 use jmap_chat::types::OwnerPresence;
 use wiremock::matchers::{body_json, method};
@@ -2487,4 +2487,242 @@ async fn blob_lookup_returns_typed_response() {
 
     // Oracle: fixture notFound == ["blob-missing"]
     assert!(result.not_found.contains(&"blob-missing".to_string()));
+}
+
+// ---------------------------------------------------------------------------
+// Test: message_set_update (readAt) — marks message read timestamp
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP Chat §4.5 — readAt patch sets the read timestamp on a Message.
+/// Body matcher: verifies readAt is present in the update patch with full-precision value.
+#[tokio::test]
+async fn message_set_update_read_at_sends_correct_patch() {
+    let server = MockServer::start().await;
+    let read_at = jmap_chat::jmap::UTCDate::from_trusted("2024-01-01T10:05:00Z");
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Message/set", {
+                "accountId": "account1",
+                "update": {
+                    "01HV5Z6QKWJ7N3P8R2X4YTMD42": {
+                        "readAt": "2024-01-01T10:05:00Z"
+                    }
+                }
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_set_update_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    client
+        .message_set_update(
+            &test_session(&api_url),
+            &MessageUpdateInput {
+                id: "01HV5Z6QKWJ7N3P8R2X4YTMD42",
+                body: None,
+                body_type: None,
+                reaction_changes: &[],
+                read_at: Some(&read_at),
+                deleted_at: None,
+                deleted_for_all: None,
+            },
+        )
+        .await
+        .expect("message_set_update with readAt must succeed");
+}
+
+// ---------------------------------------------------------------------------
+// Test: message_query (threadRootId) — filter to a message thread
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP Chat §Message/query — threadRootId filter restricts results to a thread.
+/// Body matcher: verifies threadRootId is sent in the filter object.
+#[tokio::test]
+async fn message_query_with_thread_root_id_sends_correct_filter() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Message/query", {
+                "accountId": "account1",
+                "filter": {
+                    "chatId": "chat-001",
+                    "threadRootId": "msg-root-001"
+                },
+                "sort": [{"property": "sentAt", "isAscending": false}]
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_query_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    client
+        .message_query(
+            &test_session(&api_url),
+            &MessageQueryInput {
+                chat_id: Some("chat-001"),
+                thread_root_id: Some("msg-root-001"),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("message_query with threadRootId must succeed");
+}
+
+// ---------------------------------------------------------------------------
+// Test: message_create rateLimited — returns ClientError::RateLimited
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP Chat slow-mode — server returns rateLimited SetError with serverRetryAfter.
+/// Fixture hand-written from JMAP Chat SetError spec (rateLimited type).
+#[tokio::test]
+async fn message_create_rate_limited_returns_error() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_set_rate_limited.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let sent_at = jmap_chat::jmap::UTCDate::from_trusted("2024-01-01T10:00:30Z");
+    let err = client
+        .message_create(
+            &test_session(&api_url),
+            &MessageCreateInput {
+                client_id: "client-id-001",
+                chat_id: "chat-001",
+                body: "Hello",
+                body_type: "text/plain",
+                sent_at: &sent_at,
+                reply_to: None,
+            },
+        )
+        .await
+        .expect_err("message_create must fail when rateLimited");
+
+    match err {
+        ClientError::RateLimited { retry_after } => {
+            assert_eq!(retry_after.as_str(), "2024-01-01T10:01:00Z");
+        }
+        other => panic!("expected RateLimited, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test: chat_set_destroy — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.3 — Chat/set destroy response: destroyed list contains the ID.
+/// Fixture hand-written from §5.3 /set response definition.
+#[tokio::test]
+async fn chat_set_destroy_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Chat/set", {
+                "accountId": "account1",
+                "destroy": ["01HV5Z6QKWJ7N3P8R2X4YTMDCH"]
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("chat_set_destroy_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_set_destroy(&test_session(&api_url), &["01HV5Z6QKWJ7N3P8R2X4YTMDCH"])
+        .await
+        .expect("chat_set_destroy must succeed");
+
+    // Oracle: fixture destroyed list contains the chat ID
+    let destroyed = result.destroyed.expect("destroyed list must be present");
+    assert_eq!(destroyed.len(), 1);
+    assert_eq!(destroyed[0], "01HV5Z6QKWJ7N3P8R2X4YTMDCH");
+}
+
+// ---------------------------------------------------------------------------
+// Test: chat_create_channel — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP Chat §Chat/set create/channel — server assigns an ID in the created map.
+/// Body matcher: verifies kind, spaceId, name are sent.
+#[tokio::test]
+async fn chat_create_channel_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(body_json(serde_json::json!({
+            "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Chat/set", {
+                "accountId": "account1",
+                "create": {
+                    "client-ch-001": {
+                        "kind": "channel",
+                        "spaceId": "space-001",
+                        "name": "general"
+                    }
+                }
+            }, "r1"]]
+        })))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("chat_set_create_channel_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_create_channel(
+            &test_session(&api_url),
+            &ChatCreateChannelInput {
+                client_id: "client-ch-001",
+                space_id: "space-001",
+                name: "general",
+                description: None,
+            },
+        )
+        .await
+        .expect("chat_create_channel must succeed");
+
+    // Oracle: fixture created map contains client_id → server-assigned ID
+    let created = result.created.expect("created map must be present");
+    let chat = created
+        .get("client-ch-001")
+        .expect("created map must contain client_id");
+    assert_eq!(
+        chat.get("id").and_then(|v| v.as_str()),
+        Some("01HV5Z6QKWJ7N3P8R2X4YTMDCN")
+    );
 }
