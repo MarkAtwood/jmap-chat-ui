@@ -155,8 +155,8 @@ impl crate::client::JmapChatClient {
             .ok_or_else(|| crate::error::ClientError::InvalidSession("no chat account_id"))?;
         let mut filter = serde_json::Map::new();
         if let Some(k) = filter_kind {
-            let kind_str = serde_json::to_value(&k)
-                .map_err(crate::error::ClientError::Serialize)?;
+            let kind_str =
+                serde_json::to_value(&k).map_err(crate::error::ClientError::Serialize)?;
             filter.insert("kind".into(), kind_str);
         }
         if let Some(m) = filter_muted {

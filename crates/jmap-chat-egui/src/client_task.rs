@@ -476,9 +476,7 @@ async fn load_chats(
     // Always call chat_get even when ids is empty, so we get the current state
     // string and can use Chat/changes for future delta sync.
     let id_refs: Vec<&str> = query.ids.iter().map(String::as_str).collect();
-    let resp = client
-        .chat_get(session, Some(&id_refs), None)
-        .await?;
+    let resp = client.chat_get(session, Some(&id_refs), None).await?;
     let state = resp.state.clone();
     send_event(tx, ctx, AppEvent::ChatsLoaded(resp.list));
     Ok(state)
@@ -510,10 +508,7 @@ async fn load_messages_for_chat(
         Vec::new()
     } else {
         let id_refs: Vec<&str> = query.ids.iter().map(String::as_str).collect();
-        client
-            .message_get(session, &id_refs, None)
-            .await?
-            .list
+        client.message_get(session, &id_refs, None).await?.list
     };
 
     // message_query returns IDs newest-first; after /get the order is
@@ -588,10 +583,7 @@ async fn try_mark_read(
 ) {
     if let Some(msg_id) = last_msg_id {
         if let Some(rp_id) = read_positions.get(chat_id) {
-            if let Err(e) = client
-                .read_position_set(session, rp_id, &msg_id)
-                .await
-            {
+            if let Err(e) = client.read_position_set(session, rp_id, &msg_id).await {
                 send_event(
                     tx,
                     ctx,
@@ -707,14 +699,8 @@ async fn handle_state_change(
 ) {
     if let Some(type_map) = changed.get(session.chat_account_id().unwrap_or_default()) {
         if type_map.contains_key("Chat") {
-            if let Some(new_state) = chat_delta_sync(
-                Arc::clone(&client),
-                session,
-                chat_state.as_deref(),
-                tx,
-                ctx,
-            )
-            .await
+            if let Some(new_state) =
+                chat_delta_sync(Arc::clone(&client), session, chat_state.as_deref(), tx, ctx).await
             {
                 *chat_state = Some(new_state);
             }
@@ -722,15 +708,10 @@ async fn handle_state_change(
 
         if type_map.contains_key("Message") {
             if let Some(chat_id) = current_chat {
-                if let Err(e) = load_messages_for_chat(
-                    Arc::clone(&client),
-                    session,
-                    chat_id,
-                    tx,
-                    ctx,
-                )
-                .await
-                .map(|_| ())
+                if let Err(e) =
+                    load_messages_for_chat(Arc::clone(&client), session, chat_id, tx, ctx)
+                        .await
+                        .map(|_| ())
                 {
                     send_event(
                         tx,
@@ -795,10 +776,7 @@ async fn chat_delta_sync(
         Some(s) => s,
     };
 
-    let changes = match client
-        .chat_changes(session, state, Some(500))
-        .await
-    {
+    let changes = match client.chat_changes(session, state, Some(500)).await {
         Ok(c) => c,
         Err(ClientError::MethodError { ref error_type, .. })
             if error_type == "cannotCalculateChanges" =>
@@ -831,10 +809,7 @@ async fn chat_delta_sync(
     let updated_chats = if id_refs.is_empty() {
         Vec::new()
     } else {
-        match client
-            .chat_get(session, Some(&id_refs), None)
-            .await
-        {
+        match client.chat_get(session, Some(&id_refs), None).await {
             Ok(resp) => resp.list,
             Err(e) => {
                 send_event(

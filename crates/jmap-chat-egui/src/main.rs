@@ -141,8 +141,7 @@ impl eframe::App for App {
                         .add_sized([60.0, ui.available_height()], egui::Button::new("Send"))
                         .clicked();
                     if enter_pressed || send_clicked {
-                        if let Some(chat_id) = self.state.selected_chat.clone()
-                        {
+                        if let Some(chat_id) = self.state.selected_chat.clone() {
                             let body = self.state.compose_text.trim().to_string();
                             if !body.is_empty() {
                                 if self
