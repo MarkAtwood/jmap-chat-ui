@@ -56,3 +56,6 @@
 [10:00:35] COORDINATOR: review round 1, epic 30o
 [10:10:22] COORDINATOR: yh4 complete — blob upload/download/sha256/Blob2
 [10:10:41] COORDINATOR: claimed epic arv (WebSocket transport)
+[10:40:53] COORDINATOR: claimed epic a20 (Batch requests, RefPlus, Quotas)
+[10:42:56] COORDINATOR: phase1 done, starting 0g1 (batch builder)
+[10:47:59] COORDINATOR: a20 complete — batch builder, RefPlus, Quota/get

@@ -207,6 +207,108 @@ pub struct JmapResponse {
 }
 
 // ---------------------------------------------------------------------------
+// JmapRequestBuilder (RFC 8620 §3.3)
+// ---------------------------------------------------------------------------
+
+/// Fluent builder for multi-method [`JmapRequest`] objects.
+///
+/// Collects method calls and produces a [`JmapRequest`] ready for
+/// [`crate::client::JmapChatClient::call`] or [`crate::client::JmapChatClient::call_batch`].
+///
+/// The `using` capability URIs passed to `new` apply to the whole request;
+/// callers must include every capability required by the methods they add.
+///
+/// Spec: RFC 8620 §3.3
+pub struct JmapRequestBuilder {
+    using: Vec<String>,
+    method_calls: Vec<Invocation>,
+}
+
+impl JmapRequestBuilder {
+    /// Create a new builder with the given capability URIs.
+    pub fn new(using: Vec<String>) -> Self {
+        Self {
+            using,
+            method_calls: Vec::new(),
+        }
+    }
+
+    /// Add one method call to the request.
+    ///
+    /// `call_id` must be unique within this request; callers use it to match
+    /// responses via [`JmapChatClient::call_batch`](crate::client::JmapChatClient::call_batch).
+    pub fn add_call(
+        mut self,
+        method: impl Into<String>,
+        args: serde_json::Value,
+        call_id: impl Into<String>,
+    ) -> Self {
+        self.method_calls
+            .push((method.into(), args, call_id.into()));
+        self
+    }
+
+    /// Consume the builder and produce the [`JmapRequest`].
+    pub fn build(self) -> JmapRequest {
+        JmapRequest {
+            using: self.using,
+            method_calls: self.method_calls,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ResultReference (RFC 8620 §9.1 / urn:ietf:params:jmap:refplus)
+// ---------------------------------------------------------------------------
+
+/// A JMAP result reference — refers to part of a previous method response
+/// within the same batch request (RFC 8620 §9.1).
+///
+/// When embedding in a request argument object, prefix the property name with
+/// `#` and set its value to the serialized form of this struct.  Example:
+///
+/// ```json
+/// {"accountId": "a1", "#chatId": {"resultOf": "c1", "name": "Chat/get", "path": "/list/0/id"}}
+/// ```
+///
+/// Serialize with [`ResultReference::to_value`] and insert at the `#`-prefixed
+/// key before passing to [`JmapRequestBuilder::add_call`].  Only valid when
+/// the server advertises `urn:ietf:params:jmap:refplus`; check
+/// [`Session::supports_refplus`] first.
+///
+/// Spec: RFC 8620 §9.1
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResultReference {
+    /// Call id of the earlier method whose result is being referenced.
+    pub result_of: String,
+    /// Method name of the earlier call (used for disambiguation).
+    pub name: String,
+    /// RFC 6901 JSON Pointer into the result object.
+    pub path: String,
+}
+
+impl ResultReference {
+    /// Create a new result reference.
+    pub fn new(
+        result_of: impl Into<String>,
+        name: impl Into<String>,
+        path: impl Into<String>,
+    ) -> Self {
+        Self {
+            result_of: result_of.into(),
+            name: name.into(),
+            path: path.into(),
+        }
+    }
+
+    /// Serialize to a [`serde_json::Value`] for embedding in a request args map.
+    pub fn to_value(&self) -> serde_json::Value {
+        serde_json::to_value(self).expect("ResultReference is always serializable")
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Session (RFC 8620 §2 + JMAP Chat §3)
 // ---------------------------------------------------------------------------
 
@@ -354,6 +456,24 @@ impl Session {
             .get("urn:ietf:params:jmap:webpush-vapid")?
             .get("vapidPublicKey")?
             .as_str()
+    }
+
+    /// Returns whether the server supports JMAP RefPlus result references.
+    ///
+    /// Checks for presence of `capabilities["urn:ietf:params:jmap:refplus"]`.
+    /// When true, [`ResultReference`] values may be used inside batch requests
+    /// to chain one method's output into a later method's arguments.
+    pub fn supports_refplus(&self) -> bool {
+        self.capabilities.contains_key("urn:ietf:params:jmap:refplus")
+    }
+
+    /// Returns whether the server supports JMAP Quotas.
+    ///
+    /// Checks for presence of `capabilities["urn:ietf:params:jmap:quotas"]`.
+    /// When true, [`JmapChatClient::quota_get`](crate::client::JmapChatClient::quota_get)
+    /// may be called to retrieve storage quota information.
+    pub fn supports_quotas(&self) -> bool {
+        self.capabilities.contains_key("urn:ietf:params:jmap:quotas")
     }
 }
 
@@ -749,5 +869,121 @@ mod tests {
     fn utc_date_parse_invalid() {
         let d = UTCDate::from_trusted("not-a-date");
         assert!(d.parse().is_err());
+    }
+
+    // ---------------------------------------------------------------------------
+    // JmapRequestBuilder tests
+    // ---------------------------------------------------------------------------
+
+    /// Oracle: RFC 8620 §3.3 — builder produces JmapRequest with correct using
+    /// and method_calls arrays, derived from spec structure.
+    #[test]
+    fn request_builder_produces_correct_structure() {
+        let req = JmapRequestBuilder::new(vec![
+            "urn:ietf:params:jmap:core".to_string(),
+            "urn:ietf:params:jmap:chat".to_string(),
+        ])
+        .add_call("Chat/get", serde_json::json!({"accountId": "a1", "ids": null}), "r1")
+        .add_call("Message/query", serde_json::json!({"accountId": "a1", "chatId": "c1"}), "r2")
+        .build();
+
+        assert_eq!(req.using.len(), 2);
+        assert_eq!(req.method_calls.len(), 2);
+        assert_eq!(req.method_calls[0].0, "Chat/get");
+        assert_eq!(req.method_calls[0].2, "r1");
+        assert_eq!(req.method_calls[1].0, "Message/query");
+        assert_eq!(req.method_calls[1].2, "r2");
+    }
+
+    /// Oracle: RFC 8620 §3.3 — builder serializes to the hand-written batch_request.json fixture.
+    #[test]
+    fn request_builder_serializes_to_fixture() {
+        let expected = fixture("batch_request.json");
+        let req = JmapRequestBuilder::new(vec![
+            "urn:ietf:params:jmap:core".to_string(),
+            "urn:ietf:params:jmap:chat".to_string(),
+        ])
+        .add_call("Chat/get", serde_json::json!({"accountId": "account1", "ids": null}), "r1")
+        .add_call(
+            "Message/query",
+            serde_json::json!({"accountId": "account1", "chatId": "chat-001", "limit": 10}),
+            "r2",
+        )
+        .build();
+
+        let serialized = serde_json::to_value(&req).expect("serialize request");
+        assert_eq!(serialized, expected);
+    }
+
+    // ---------------------------------------------------------------------------
+    // ResultReference tests
+    // ---------------------------------------------------------------------------
+
+    /// Oracle: RFC 8620 §9.1 — ResultReference serializes to {resultOf, name, path}
+    /// as derived from the spec (not from the code under test).
+    #[test]
+    fn result_reference_serializes_correctly() {
+        let rr = ResultReference::new("c1", "Chat/get", "/list/0/id");
+        let val = rr.to_value();
+        assert_eq!(val["resultOf"], "c1");
+        assert_eq!(val["name"], "Chat/get");
+        assert_eq!(val["path"], "/list/0/id");
+    }
+
+    /// Oracle: RFC 8620 §9.1 — batch_refplus.json fixture round-trips through
+    /// JmapRequest deserialization (hand-written fixture, independent oracle).
+    #[test]
+    fn batch_refplus_fixture_deserializes_as_jmap_request() {
+        let val = fixture("batch_refplus.json");
+        let req: JmapRequest =
+            serde_json::from_value(val).expect("batch_refplus.json must parse as JmapRequest");
+        assert_eq!(req.using.len(), 3);
+        assert!(req.using.contains(&"urn:ietf:params:jmap:refplus".to_string()));
+        assert_eq!(req.method_calls.len(), 2);
+        // The second call's args must contain the "#chatId" result reference key.
+        let second_args = &req.method_calls[1].1;
+        assert!(second_args.get("#chatId").is_some(), "must have #chatId key");
+    }
+
+    // ---------------------------------------------------------------------------
+    // Session::supports_refplus / supports_quotas tests
+    // ---------------------------------------------------------------------------
+
+    /// Oracle: supports_refplus() returns true when the capability URI is present.
+    #[test]
+    fn session_supports_refplus_when_present() {
+        let val = fixture("session.json");
+        let mut session: Session = serde_json::from_value(val).expect("must deserialize");
+        session
+            .capabilities
+            .insert("urn:ietf:params:jmap:refplus".to_string(), serde_json::json!({}));
+        assert!(session.supports_refplus());
+    }
+
+    /// Oracle: supports_refplus() returns false when the capability URI is absent.
+    #[test]
+    fn session_supports_refplus_false_when_absent() {
+        let val = fixture("session.json");
+        let session: Session = serde_json::from_value(val).expect("must deserialize");
+        assert!(!session.supports_refplus());
+    }
+
+    /// Oracle: supports_quotas() returns true when the capability URI is present.
+    #[test]
+    fn session_supports_quotas_when_present() {
+        let val = fixture("session.json");
+        let mut session: Session = serde_json::from_value(val).expect("must deserialize");
+        session
+            .capabilities
+            .insert("urn:ietf:params:jmap:quotas".to_string(), serde_json::json!({}));
+        assert!(session.supports_quotas());
+    }
+
+    /// Oracle: supports_quotas() returns false when the capability URI is absent.
+    #[test]
+    fn session_supports_quotas_false_when_absent() {
+        let val = fixture("session.json");
+        let session: Session = serde_json::from_value(val).expect("must deserialize");
+        assert!(!session.supports_quotas());
     }
 }

@@ -124,6 +124,31 @@ impl JmapChatClient {
         Ok(jmap_resp)
     }
 
+    /// POST a multi-method [`JmapRequest`] and return all responses indexed by call id.
+    ///
+    /// Thin wrapper over [`call`](JmapChatClient::call) for batch requests
+    /// built with [`JmapRequestBuilder`](crate::jmap::JmapRequestBuilder).
+    /// Returns a `HashMap` from call id to the raw JSON args of each response.
+    ///
+    /// JMAP `"error"` responses are included in the map with their original
+    /// args; callers must check the `"type"` field if they need to distinguish
+    /// errors from successful responses for individual invocations.
+    ///
+    /// Spec: RFC 8620 §3.3 / §3.4
+    pub async fn call_batch(
+        &self,
+        api_url: &str,
+        req: &JmapRequest,
+    ) -> Result<std::collections::HashMap<String, serde_json::Value>, ClientError> {
+        let resp = self.call(api_url, req).await?;
+        let map = resp
+            .method_responses
+            .into_iter()
+            .map(|(_method, args, call_id)| (call_id, args))
+            .collect();
+        Ok(map)
+    }
+
     /// Open an SSE connection to `event_source_url` and return an async stream
     /// of parsed frames.
     ///

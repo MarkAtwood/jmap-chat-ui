@@ -1,0 +1,7 @@
+{
+  "sessionState": "session-xyz",
+  "methodResponses": [
+    ["Chat/get", {"accountId": "account1", "state": "s1", "list": [], "notFound": null}, "r1"],
+    ["Message/query", {"accountId": "account1", "queryState": "qs1", "canCalculateChanges": true, "position": 0, "ids": [], "total": 0}, "r2"]
+  ]
+}

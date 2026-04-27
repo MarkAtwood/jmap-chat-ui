@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 pub mod blob;
+pub mod quota;
 pub mod chat;
 pub mod contact;
 pub mod custom_emoji;
