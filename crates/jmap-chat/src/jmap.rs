@@ -226,6 +226,12 @@ pub struct JmapRequestBuilder {
 
 impl JmapRequestBuilder {
     /// Create a new builder with the given capability URIs.
+    ///
+    /// The `using` list MUST include `"urn:ietf:params:jmap:core"` (always
+    /// required by RFC 8620 §3.3) plus every capability URI needed by the
+    /// methods added via [`add_call`](JmapRequestBuilder::add_call).  An
+    /// incorrect or empty `using` list will cause the server to return a
+    /// `"unknownCapability"` error — the builder does not validate it.
     pub fn new(using: Vec<String>) -> Self {
         Self {
             using,
@@ -304,7 +310,11 @@ impl ResultReference {
 
     /// Serialize to a [`serde_json::Value`] for embedding in a request args map.
     pub fn to_value(&self) -> serde_json::Value {
-        serde_json::to_value(self).expect("ResultReference is always serializable")
+        serde_json::json!({
+            "resultOf": self.result_of,
+            "name": self.name,
+            "path": self.path,
+        })
     }
 }
 

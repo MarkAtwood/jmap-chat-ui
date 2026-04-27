@@ -134,6 +134,10 @@ impl JmapChatClient {
     /// args; callers must check the `"type"` field if they need to distinguish
     /// errors from successful responses for individual invocations.
     ///
+    /// Returns [`ClientError::Parse`] if the server returns duplicate call ids,
+    /// which violates RFC 8620 §3.3 ("each method call id MUST be unique within
+    /// a request").
+    ///
     /// Spec: RFC 8620 §3.3 / §3.4
     pub async fn call_batch(
         &self,
@@ -141,11 +145,14 @@ impl JmapChatClient {
         req: &JmapRequest,
     ) -> Result<std::collections::HashMap<String, serde_json::Value>, ClientError> {
         let resp = self.call(api_url, req).await?;
-        let map = resp
-            .method_responses
-            .into_iter()
-            .map(|(_method, args, call_id)| (call_id, args))
-            .collect();
+        let mut map = std::collections::HashMap::with_capacity(resp.method_responses.len());
+        for (_method, args, call_id) in resp.method_responses {
+            if map.insert(call_id.clone(), args).is_some() {
+                return Err(ClientError::Parse(format!(
+                    "server returned duplicate call id {call_id:?} in batch response"
+                )));
+            }
+        }
         Ok(map)
     }
 
