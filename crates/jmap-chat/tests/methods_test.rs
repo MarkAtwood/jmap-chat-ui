@@ -8,7 +8,7 @@
 
 use jmap_chat::client::JmapChatClient;
 use jmap_chat::error::ClientError;
-use jmap_chat::methods::{GetResponse, MessageCreateInput, MessageQueryInput};
+use jmap_chat::methods::{ChatQueryInput, GetResponse, MessageCreateInput, MessageQueryInput};
 use wiremock::matchers::method;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -311,4 +311,269 @@ fn get_response_empty_list_deserializes() {
     assert_eq!(result.state, "s0");
     assert!(result.list.is_empty());
     assert!(result.not_found.is_none());
+}
+
+// ---------------------------------------------------------------------------
+// Test 8: chat_query — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.5 — Chat/query response shape: queryState, ids, position.
+/// Fixture hand-written from §5.5 /query response definition.
+#[tokio::test]
+async fn chat_query_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("chat_query_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_query(
+            &test_session(&api_url),
+            &ChatQueryInput {
+                limit: Some(50),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("chat_query must succeed");
+
+    // Oracle: RFC 8620 §5.5 — ids is non-empty, queryState is present
+    assert!(!result.ids.is_empty(), "ids must contain at least one entry");
+    assert!(!result.query_state.is_empty(), "query_state must not be empty");
+}
+
+// ---------------------------------------------------------------------------
+// Test 9: chat_changes — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.2 — Chat/changes response shape: oldState, newState, hasMoreChanges.
+/// Fixture hand-written from §5.2 /changes response definition.
+#[tokio::test]
+async fn chat_changes_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("chat_changes_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_changes(&test_session(&api_url), "state-chat-000", None)
+        .await
+        .expect("chat_changes must succeed");
+
+    // Oracle: RFC 8620 §5.2 — oldState echoes the sinceState argument
+    assert_eq!(result.old_state, "state-chat-000");
+    assert!(!result.has_more_changes);
+}
+
+// ---------------------------------------------------------------------------
+// Test 10: message_get — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.1 — Message/get response shape: list with one Message.
+/// Fixture hand-written from §5.1 /get response definition.
+#[tokio::test]
+async fn message_get_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_get_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .message_get(
+            &test_session(&api_url),
+            &["01HV5Z6QKWJ7N3P8R2X4YTMD42"],
+            None,
+        )
+        .await
+        .expect("message_get must succeed");
+
+    // Oracle: RFC 8620 §5.1 — list has exactly one entry with the requested id
+    assert_eq!(result.list.len(), 1);
+    assert_eq!(result.list[0].id, "01HV5Z6QKWJ7N3P8R2X4YTMD42");
+}
+
+// ---------------------------------------------------------------------------
+// Test 11: message_query — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.5 — Message/query response shape: queryState, ids, position.
+/// Fixture hand-written from §5.5 /query response definition.
+#[tokio::test]
+async fn message_query_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_query_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .message_query(
+            &test_session(&api_url),
+            &MessageQueryInput {
+                chat_id: Some("01HV5Z6QKWJ7N3P8R2X4YTMD3G"),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("message_query must succeed");
+
+    // Oracle: RFC 8620 §5.5 — ids is non-empty, queryState is present
+    assert!(!result.ids.is_empty(), "ids must have length > 0");
+    assert!(!result.query_state.is_empty(), "query_state must not be empty");
+}
+
+// ---------------------------------------------------------------------------
+// Test 12: message_changes — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: RFC 8620 §5.2 — Message/changes response shape: oldState, hasMoreChanges.
+/// Fixture hand-written from §5.2 /changes response definition.
+#[tokio::test]
+async fn message_changes_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("message_changes_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .message_changes(&test_session(&api_url), "state-msg-000", None)
+        .await
+        .expect("message_changes must succeed");
+
+    // Oracle: RFC 8620 §5.2 — oldState echoes the sinceState argument
+    assert_eq!(result.old_state, "state-msg-000");
+    assert!(!result.has_more_changes);
+}
+
+// ---------------------------------------------------------------------------
+// Test 13: chat_contact_get — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP Chat §5 — ChatContact/get response shape: list with one ChatContact.
+/// Fixture hand-written from §5.1 /get response definition.
+#[tokio::test]
+async fn chat_contact_get_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("chat_contact_get_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .chat_contact_get(&test_session(&api_url), None, None)
+        .await
+        .expect("chat_contact_get must succeed");
+
+    // Oracle: JMAP Chat §5 — list has at least one entry
+    assert!(result.list.len() >= 1, "list must have at least one contact");
+}
+
+// ---------------------------------------------------------------------------
+// Test 14: read_position_get — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP Chat §5 — ReadPosition/get response shape: list with one ReadPosition.
+/// Fixture hand-written from §5.1 /get response definition.
+#[tokio::test]
+async fn read_position_get_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("read_position_get_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .read_position_get(&test_session(&api_url), None)
+        .await
+        .expect("read_position_get must succeed");
+
+    // Oracle: JMAP Chat §5 — list has at least one entry with a non-empty chatId
+    assert!(result.list.len() >= 1, "list must have at least one entry");
+    assert!(
+        !result.list[0].chat_id.as_str().is_empty(),
+        "chat_id must not be empty"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 15: presence_status_get — happy path
+// ---------------------------------------------------------------------------
+
+/// Oracle: JMAP Chat §5 — PresenceStatus/get response shape: list with one PresenceStatus.
+/// Fixture hand-written from §5.1 /get response definition.
+#[tokio::test]
+async fn presence_status_get_returns_typed_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(fixture("presence_status_get_response.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(jmap_chat::auth::NoneAuth, &server.uri())
+        .expect("client construction must succeed");
+
+    let api_url = format!("{}/api", server.uri());
+    let result = client
+        .presence_status_get(&test_session(&api_url))
+        .await
+        .expect("presence_status_get must succeed");
+
+    // Oracle: JMAP Chat §5 — list has at least one entry (singleton per account)
+    assert!(result.list.len() >= 1, "list must have at least one entry");
 }
