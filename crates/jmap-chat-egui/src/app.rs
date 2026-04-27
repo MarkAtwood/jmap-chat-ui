@@ -170,6 +170,9 @@ impl AppState {
             } => {
                 self.presence.insert(contact_id, presence);
             }
+            AppEvent::EphemeralUnavailable => {
+                self.supports_ephemeral = false;
+            }
         }
     }
 

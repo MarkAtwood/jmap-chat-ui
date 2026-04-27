@@ -234,6 +234,8 @@ pub async fn run(
     let (ws_notif_tx, mut ws_notif_rx) = tokio::sync::mpsc::unbounded_channel::<WsNotification>();
     let mut ws_handle: Option<tokio::task::JoinHandle<()>> = None;
     let mut ws_backoff_idx = 0usize;
+    let mut ws_consecutive_failures: usize = 0;
+    const WS_MAX_FAILURES: usize = 5;
 
     if let Some(ref url) = ws_url {
         ws_handle = Some(spawn_ws_task(
@@ -289,7 +291,18 @@ pub async fn run(
                 match ws_msg {
                     None => {} // ws_notif_tx in scope; channel cannot close normally
                     Some(WsNotification::StreamEnded) => {
-                        ws_needs_restart = true;
+                        ws_consecutive_failures += 1;
+                        if ws_consecutive_failures >= WS_MAX_FAILURES {
+                            tracing::warn!(
+                                consecutive = ws_consecutive_failures,
+                                "WebSocket upgrade failed {WS_MAX_FAILURES} times without a successful frame; \
+                                 disabling ephemeral events"
+                            );
+                            send_event(&tx, &ctx, AppEvent::EphemeralUnavailable);
+                            // ws_needs_restart stays false — do not retry further
+                        } else {
+                            ws_needs_restart = true;
+                        }
                     }
                     Some(WsNotification::AuthFailed) => {
                         send_event(
@@ -304,12 +317,14 @@ pub async fn run(
                         if let Some(h) = ws_handle.take() {
                             h.abort();
                         }
+                        send_event(&tx, &ctx, AppEvent::EphemeralUnavailable);
                     }
                     Some(WsNotification::TypingIndicator {
                         chat_id,
                         sender_id,
                         typing,
                     }) => {
+                        ws_consecutive_failures = 0;
                         send_event(
                             &tx,
                             &ctx,
@@ -320,6 +335,7 @@ pub async fn run(
                         contact_id,
                         presence,
                     }) => {
+                        ws_consecutive_failures = 0;
                         send_event(
                             &tx,
                             &ctx,

@@ -52,6 +52,9 @@ pub enum AppEvent {
         contact_id: String,
         presence: ContactPresence,
     },
+    /// The WebSocket upgrade failed too many times; ephemeral events are now
+    /// disabled. The UI should hide typing indicators and presence badges.
+    EphemeralUnavailable,
 }
 
 /// Commands sent from the egui UI to the background client task.
