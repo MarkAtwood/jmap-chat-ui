@@ -36,10 +36,9 @@ fn main() -> eframe::Result<()> {
         eframe::NativeOptions::default(),
         Box::new(move |cc| {
             let ctx = cc.egui_ctx.clone();
-            std::thread::spawn(move || {
-                tokio::runtime::Runtime::new()
-                    .expect("tokio runtime")
-                    .block_on(client_task::run(client, task_tx, task_rx, ctx));
+            std::thread::spawn(move || match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt.block_on(client_task::run(client, task_tx, task_rx, ctx)),
+                Err(e) => eprintln!("error: failed to create tokio runtime: {e}"),
             });
             Ok(Box::new(App::new(AppState::default(), ui_tx, ui_rx)))
         }),

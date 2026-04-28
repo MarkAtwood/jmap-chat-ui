@@ -153,10 +153,7 @@ impl AuthProvider for BearerAuth {
     fn auth_header(&self) -> Option<(String, String)> {
         Some((
             AUTHORIZATION.as_str().to_string(),
-            self.header_value
-                .to_str()
-                .expect("pre-computed auth header is always valid ASCII")
-                .to_string(),
+            self.header_value.to_str().ok()?.to_string(),
         ))
     }
 }
@@ -204,10 +201,7 @@ impl AuthProvider for BasicAuth {
     fn auth_header(&self) -> Option<(String, String)> {
         Some((
             AUTHORIZATION.as_str().to_string(),
-            self.header_value
-                .to_str()
-                .expect("pre-computed auth header is always valid ASCII")
-                .to_string(),
+            self.header_value.to_str().ok()?.to_string(),
         ))
     }
 }

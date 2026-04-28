@@ -222,6 +222,13 @@ impl super::SessionClient {
                             "message_update: sender_reaction_id may not be empty".into(),
                         ));
                     }
+                    if sender_reaction_id.contains('/') || sender_reaction_id.contains('~') {
+                        return Err(crate::error::ClientError::InvalidArgument(
+                            "message_update: sender_reaction_id must not contain '/' or '~' \
+                             (RFC 6901 JSON Pointer special characters)"
+                                .into(),
+                        ));
+                    }
                     patch_map.insert(
                         format!("reactions/{sender_reaction_id}"),
                         serde_json::json!({"emoji": emoji, "sentAt": sent_at.as_str()}),
@@ -231,6 +238,13 @@ impl super::SessionClient {
                     if sender_reaction_id.is_empty() {
                         return Err(crate::error::ClientError::InvalidArgument(
                             "message_update: sender_reaction_id may not be empty".into(),
+                        ));
+                    }
+                    if sender_reaction_id.contains('/') || sender_reaction_id.contains('~') {
+                        return Err(crate::error::ClientError::InvalidArgument(
+                            "message_update: sender_reaction_id must not contain '/' or '~' \
+                             (RFC 6901 JSON Pointer special characters)"
+                                .into(),
                         ));
                     }
                     patch_map.insert(

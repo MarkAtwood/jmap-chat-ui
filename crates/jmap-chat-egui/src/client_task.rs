@@ -258,6 +258,9 @@ pub async fn run(
     // `sse_needs_restart` and `ws_needs_restart` are set inside select! arms where we
     // cannot sleep directly; the actual reconnect happens at the top of the loop.
     let mut sse_needs_restart = false;
+    // Set to true when the SSE task exits due to auth failure; suppresses the
+    // automatic restart that would otherwise trigger from the `None` arm below.
+    let mut sse_auth_failed = false;
     let mut ws_needs_restart = false;
 
     loop {
@@ -359,8 +362,12 @@ pub async fn run(
             sse_msg = sse_rx.recv() => {
                 match sse_msg {
                     None => {
-                        // sse_tx was dropped — should not happen normally.
-                        sse_needs_restart = true;
+                        // sse_tx was dropped. If this was caused by an auth failure
+                        // (sse_auth_failed=true), do not restart — the credentials are
+                        // wrong and reconnecting immediately would loop forever.
+                        if !sse_auth_failed {
+                            sse_needs_restart = true;
+                        }
                         continue;
                     }
                     Some(SseNotification::StreamEnded { last_event_id }) => {
@@ -371,6 +378,7 @@ pub async fn run(
                         continue;
                     }
                     Some(SseNotification::AuthFailed) => {
+                        sse_auth_failed = true;
                         send_event(
                             &tx,
                             &ctx,
@@ -588,7 +596,8 @@ async fn bootstrap_session(
     tx: &EventSender,
     ctx: &egui::Context,
 ) -> Option<jmap_chat::Session> {
-    let backoff_secs: &[u64] = &[1, 2, 4, 8, 16];
+    const BOOTSTRAP_BACKOFF: &[u64] = &[1, 2, 4, 8, 16];
+    const BOOTSTRAP_MAX_BACKOFF: u64 = 16;
     let mut attempt = 0usize;
 
     loop {
@@ -606,10 +615,10 @@ async fn bootstrap_session(
                 return None;
             }
             Err(e) => {
-                let delay = backoff_secs
+                let delay = BOOTSTRAP_BACKOFF
                     .get(attempt)
                     .copied()
-                    .unwrap_or(*backoff_secs.last().unwrap());
+                    .unwrap_or(BOOTSTRAP_MAX_BACKOFF);
                 send_event(
                     tx,
                     ctx,
@@ -819,11 +828,12 @@ async fn reconnect_sse(
     tokio::sync::mpsc::UnboundedReceiver<SseNotification>,
 ) {
     const BACKOFF: &[u64] = &[1, 2, 4, 8, 16, 30];
+    const MAX_BACKOFF_SECS: u64 = 30;
     old_handle.abort();
     let delay = BACKOFF
         .get(*backoff_idx)
         .copied()
-        .unwrap_or(*BACKOFF.last().unwrap());
+        .unwrap_or(MAX_BACKOFF_SECS);
     *backoff_idx = backoff_idx.saturating_add(1);
     send_event(
         tx,
@@ -1118,13 +1128,14 @@ async fn reconnect_ws(
     ws_tx: tokio::sync::mpsc::UnboundedSender<WsNotification>,
 ) -> tokio::task::JoinHandle<()> {
     const BACKOFF: &[u64] = &[1, 2, 4, 8, 16, 30];
+    const MAX_BACKOFF_SECS: u64 = 30;
     if let Some(h) = old_handle {
         h.abort();
     }
     let delay = BACKOFF
         .get(*backoff_idx)
         .copied()
-        .unwrap_or(*BACKOFF.last().unwrap());
+        .unwrap_or(MAX_BACKOFF_SECS);
     *backoff_idx = backoff_idx.saturating_add(1);
     tokio::time::sleep(Duration::from_secs(delay)).await;
     spawn_ws_task(client, ws_url.to_string(), ws_tx)

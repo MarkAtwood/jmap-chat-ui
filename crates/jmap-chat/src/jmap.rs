@@ -944,6 +944,14 @@ mod tests {
     // JmapRequestBuilder tests
     // ---------------------------------------------------------------------------
 
+    /// Oracle: RFC 8620 §3.3 — build() with no method calls is a programmer
+    /// error; the builder panics immediately rather than sending an empty batch.
+    #[test]
+    #[should_panic(expected = "method_calls must not be empty")]
+    fn request_builder_panics_on_empty_method_calls() {
+        JmapRequestBuilder::new(&["urn:ietf:params:jmap:core"]).build();
+    }
+
     /// Oracle: RFC 8620 §3.3 — duplicate call_id is a programmer error; the
     /// builder panics immediately rather than producing an ambiguous request.
     #[test]
