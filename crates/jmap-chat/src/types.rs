@@ -1540,7 +1540,7 @@ pub struct ChatPushConfig {
 /// server that sends both — callers should treat `body_snippet` as unreliable
 /// when `encrypted` is `true`.
 #[non_exhaustive]
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessageEntry {
     /// Server-assigned id of the new message.
@@ -1574,7 +1574,7 @@ pub struct ChatMessageEntry {
 /// Push payload delivered directly to the registered push endpoint.
 /// Spec: draft-atwood-jmap-chat-push-00 §4.1
 #[non_exhaustive]
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessagePush {
     /// MUST be `"ChatMessagePush"`.

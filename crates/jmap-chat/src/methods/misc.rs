@@ -35,6 +35,16 @@ impl super::SessionClient {
         read_position_id: &str,
         last_read_message_id: &str,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if read_position_id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "read_position_update: read_position_id may not be empty".into(),
+            ));
+        }
+        if last_read_message_id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "read_position_update: last_read_message_id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
@@ -160,6 +170,16 @@ impl super::SessionClient {
         &self,
         input: &PushSubscriptionCreateInput<'_>,
     ) -> Result<PushSubscriptionCreateResponse, crate::error::ClientError> {
+        if input.device_client_id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "push_subscription_create: device_client_id may not be empty".into(),
+            ));
+        }
+        if input.url.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "push_subscription_create: url may not be empty".into(),
+            ));
+        }
         let api_url = self.api_url();
         let client_id = super::resolve_client_id(input.client_id);
         let mut create_obj = serde_json::json!({

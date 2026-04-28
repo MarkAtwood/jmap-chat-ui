@@ -54,6 +54,12 @@ impl JmapChatClient {
         let parsed = url::Url::parse(base_url).map_err(|e| {
             ClientError::InvalidArgument(format!("base_url is not a valid URL: {e}"))
         })?;
+        let scheme = parsed.scheme();
+        if scheme != "http" && scheme != "https" {
+            return Err(ClientError::InvalidArgument(format!(
+                "base_url scheme must be http or https, got: {scheme:?}"
+            )));
+        }
         let path = parsed.path();
         // url::Url::path() returns "/" for root-only URLs (no path segments);
         // any value other than "/" means the URL contains an explicit path component.
@@ -144,7 +150,9 @@ impl JmapChatClient {
             return Err(ClientError::InvalidSession("apiUrl is empty".into()));
         }
         if session.event_source_url.is_empty() {
-            return Err(ClientError::InvalidSession("eventSourceUrl is empty".into()));
+            return Err(ClientError::InvalidSession(
+                "eventSourceUrl is empty".into(),
+            ));
         }
         if session.upload_url.is_empty() {
             return Err(ClientError::InvalidSession("uploadUrl is empty".into()));
@@ -381,7 +389,8 @@ impl JmapChatClient {
                     }
                 }
             },
-        ).boxed())
+        )
+        .boxed())
     }
 }
 
@@ -923,6 +932,102 @@ mod tests {
         assert_eq!(scan_from, 1, "fix must land on the emoji's start byte");
     }
 
+    /// Oracle: subscribe_events must yield ClientError::SseFrameTooLarge and terminate
+    /// the stream when a single SSE frame grows beyond 1 MiB without a delimiter.
+    ///
+    /// This is the primary defense against a hostile server causing unbounded buffer
+    /// growth (OOM). The threshold is 1 MiB per frame; the stream is terminated after
+    /// the error so no further items follow.
+    #[tokio::test]
+    async fn subscribe_events_yields_sse_frame_too_large() {
+        use futures::StreamExt;
+        // 1 MiB + 1 byte of ASCII 'a' with no double-newline SSE delimiter.
+        let oversized_body = "a".repeat(1024 * 1024 + 1);
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/events"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(oversized_body))
+            .mount(&server)
+            .await;
+
+        let client = JmapChatClient::new(
+            crate::auth::DefaultTransport,
+            crate::auth::NoneAuth,
+            &server.uri(),
+        )
+        .expect("client construction must succeed");
+
+        let url = format!("{}/events", server.uri());
+        let mut stream = client
+            .subscribe_events(&url, None)
+            .await
+            .expect("subscribe_events must succeed for a 200 response");
+
+        let first = stream
+            .next()
+            .await
+            .expect("stream must yield SseFrameTooLarge");
+        assert!(
+            matches!(first, Err(ClientError::SseFrameTooLarge)),
+            "expected SseFrameTooLarge, got {first:?}"
+        );
+        // Stream must terminate (state=None) after the error.
+        assert!(
+            stream.next().await.is_none(),
+            "stream must be exhausted after SseFrameTooLarge"
+        );
+    }
+
+    /// Oracle: subscribe_events must yield ClientError::Parse("invalid UTF-8 …") and
+    /// terminate the stream when the server sends bytes that are not valid UTF-8.
+    ///
+    /// Policy: reject silently rather than replacing with U+FFFD, because replacement
+    /// characters in SSE event data can produce subtly wrong JSON parses.
+    #[tokio::test]
+    async fn subscribe_events_yields_parse_error_on_invalid_utf8() {
+        use futures::StreamExt;
+        // 0xFF is never valid in UTF-8 — ensures String::from_utf8 fails.
+        let invalid_body = vec![0xFF_u8, b'x'];
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/events"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(invalid_body))
+            .mount(&server)
+            .await;
+
+        let client = JmapChatClient::new(
+            crate::auth::DefaultTransport,
+            crate::auth::NoneAuth,
+            &server.uri(),
+        )
+        .expect("client construction must succeed");
+
+        let url = format!("{}/events", server.uri());
+        let mut stream = client
+            .subscribe_events(&url, None)
+            .await
+            .expect("subscribe_events must succeed for a 200 response");
+
+        let first = stream
+            .next()
+            .await
+            .expect("stream must yield a parse error");
+        match first {
+            Err(ClientError::Parse(msg)) => {
+                assert!(
+                    msg.contains("invalid UTF-8"),
+                    "error message must mention 'invalid UTF-8', got: {msg:?}"
+                );
+            }
+            other => panic!("expected Parse error for invalid UTF-8, got {other:?}"),
+        }
+        // Stream must terminate (state=None) after the error.
+        assert!(
+            stream.next().await.is_none(),
+            "stream must be exhausted after UTF-8 parse error"
+        );
+    }
+
     /// Oracle: base_url validation — a URL with a path component must be rejected.
     #[test]
     fn new_rejects_base_url_with_path() {
@@ -1005,6 +1110,41 @@ mod tests {
             matches!(err, ClientError::InvalidArgument(_)),
             "expected InvalidArgument, got {err:?}"
         );
+    }
+
+    /// Oracle: base_url validation — ftp:// and file:// schemes must be rejected.
+    /// Only http and https are valid for a JMAP base URL (RFC 8620 §1).
+    #[test]
+    fn new_rejects_non_http_scheme() {
+        for bad_url in &[
+            "ftp://example.com",
+            "file:///etc/passwd",
+            "data:text/plain,x",
+        ] {
+            let err = JmapChatClient::new(
+                crate::auth::DefaultTransport,
+                crate::auth::NoneAuth,
+                bad_url,
+            )
+            .map(|_| ())
+            .expect_err(&format!("non-http base_url {bad_url:?} must be rejected"));
+            assert!(
+                matches!(err, ClientError::InvalidArgument(_)),
+                "expected InvalidArgument for {bad_url:?}, got {err:?}"
+            );
+        }
+    }
+
+    /// Oracle: base_url validation — http:// (plain HTTP) must be accepted for
+    /// development/testing scenarios where TLS is terminated upstream.
+    #[test]
+    fn new_accepts_http_base_url() {
+        let result = JmapChatClient::new(
+            crate::auth::DefaultTransport,
+            crate::auth::NoneAuth,
+            "http://localhost:8080",
+        );
+        assert!(result.is_ok(), "http base_url must be accepted");
     }
 
     /// Oracle: base_url validation — a URL with a fragment must be rejected.

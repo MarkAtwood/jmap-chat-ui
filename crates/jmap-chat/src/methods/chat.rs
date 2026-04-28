@@ -156,6 +156,11 @@ impl super::SessionClient {
                 client_id,
                 contact_id,
             } => {
+                if contact_id.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "chat_create: contact_id may not be empty".into(),
+                    ));
+                }
                 create_obj = serde_json::json!({
                     "kind": "direct",
                     "contactId": contact_id,
@@ -170,6 +175,11 @@ impl super::SessionClient {
                 avatar_blob_id,
                 message_expiry_seconds,
             } => {
+                if name.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "chat_create: name may not be empty".into(),
+                    ));
+                }
                 let mut obj = serde_json::json!({
                     "kind": "group",
                     "name": name,
@@ -193,6 +203,16 @@ impl super::SessionClient {
                 name,
                 description,
             } => {
+                if space_id.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "chat_create: space_id may not be empty".into(),
+                    ));
+                }
+                if name.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "chat_create: name may not be empty".into(),
+                    ));
+                }
                 let mut obj = serde_json::json!({
                     "kind": "channel",
                     "spaceId": space_id,
@@ -230,6 +250,11 @@ impl super::SessionClient {
         id: &str,
         patch: &ChatPatch<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "chat_update: id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let mut patch_map = serde_json::Map::new();
 

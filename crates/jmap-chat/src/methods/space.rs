@@ -138,6 +138,11 @@ impl super::SessionClient {
         &self,
         input: &SpaceCreateInput<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if input.name.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "space_create: name may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let client_id = super::resolve_client_id(input.client_id);
         let mut create_obj = serde_json::json!({ "name": input.name });
@@ -195,6 +200,11 @@ impl super::SessionClient {
         id: &str,
         patch: &SpacePatch<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "space_update: id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let mut patch_map = serde_json::Map::new();
 

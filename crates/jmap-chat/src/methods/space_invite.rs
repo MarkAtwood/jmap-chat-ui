@@ -50,6 +50,11 @@ impl super::SessionClient {
         &self,
         input: &SpaceInviteCreateInput<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if input.space_id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "space_invite_create: space_id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let mut obj = serde_json::json!({ "spaceId": input.space_id });
         if let Some(ch) = input.default_channel_id {

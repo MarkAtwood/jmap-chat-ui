@@ -128,6 +128,11 @@ impl super::SessionClient {
         &self,
         input: &MessageCreateInput<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if input.chat_id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "message_create: chat_id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let client_id = super::resolve_client_id(input.client_id);
         // Used twice: as the json! key and for not_created.get() lookup — borrow from Cow to avoid double-move.
@@ -178,6 +183,11 @@ impl super::SessionClient {
         id: &str,
         patch: &MessagePatch<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "message_update: id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let mut patch_map = serde_json::Map::new();
         if let Some(b) = patch.body {

@@ -51,6 +51,11 @@ impl super::SessionClient {
         id: &str,
         patch: &ChatContactPatch<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "chat_contact_update: id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let mut patch_map = serde_json::Map::new();
         if let Some(b) = patch.blocked {

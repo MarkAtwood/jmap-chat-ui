@@ -128,9 +128,11 @@ impl crate::client::JmapChatClient {
     /// Download a blob by ID (RFC 8620 §6.2).
     ///
     /// `download_url_template` is from `Session.download_url`; `{accountId}`,
-    /// `{blobId}`, `{name}`, and optionally `{type}` are substituted before
-    /// the GET request. Pass `accept_type` to fill `{type}` (e.g. `"image/png"`)
-    /// for content-type negotiation; pass `None` when the template omits `{type}`.
+    /// `{blobId}`, `{name}`, and `{type}` are substituted before the GET request.
+    /// Pass `accept_type` (e.g. `"image/png"`) for content-type negotiation; pass
+    /// `None` when no preference is needed — `{type}` expands to an empty string
+    /// per RFC 6570 Level-1, so templates that include `?accept={type}` produce
+    /// `?accept=` when `accept_type` is `None`.
     /// If `expected_sha256` is `Some`, the downloaded bytes are verified
     /// against the hex digest and `ClientError::BlobIntegrityMismatch` is
     /// returned on mismatch.
@@ -143,14 +145,15 @@ impl crate::client::JmapChatClient {
         accept_type: Option<&str>,
         expected_sha256: Option<&str>,
     ) -> Result<Vec<u8>, crate::error::ClientError> {
-        let mut vars: Vec<(&str, &str)> = vec![
+        let vars: Vec<(&str, &str)> = vec![
             ("accountId", account_id),
             ("blobId", blob_id),
             ("name", name),
+            // RFC 6570 Level-1: undefined variables expand to empty string.
+            // Always substitute {type} so templates with ?accept={type} produce
+            // ?accept= (empty, server ignores) rather than the literal "{type}".
+            ("type", accept_type.unwrap_or("")),
         ];
-        if let Some(t) = accept_type {
-            vars.push(("type", t));
-        }
         let url = expand_url_template(download_url_template, &vars);
 
         let mut req = self.http.get(&url);

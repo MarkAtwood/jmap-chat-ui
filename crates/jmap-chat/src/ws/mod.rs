@@ -261,6 +261,29 @@ mod tests {
         }
     }
 
+    /// Oracle: connect_ws must reject http:// and https:// URLs with InvalidArgument.
+    ///
+    /// This is the documented SSRF prevention guard: a compromised or MITM'd session
+    /// could send an http:// URL; we must not follow it as a WebSocket URL.
+    /// The scheme check runs before any network I/O.
+    #[tokio::test]
+    async fn connect_ws_rejects_non_ws_schemes() {
+        let client = crate::client::JmapChatClient::new(
+            crate::auth::DefaultTransport,
+            crate::auth::NoneAuth,
+            "https://example.com",
+        )
+        .expect("client construction must succeed");
+
+        for bad_url in &["http://host/", "https://host/", "ftp://host/"] {
+            let result = client.connect_ws(bad_url).await.map(|_| ());
+            match result {
+                Err(crate::error::ClientError::InvalidArgument(_)) => {}
+                other => panic!("expected InvalidArgument for {bad_url:?}, got {other:?}"),
+            }
+        }
+    }
+
     /// Oracle: parse_ws_frame returns ChatPresence for ChatPresenceEvent.
     #[test]
     fn parse_chat_presence_event() {

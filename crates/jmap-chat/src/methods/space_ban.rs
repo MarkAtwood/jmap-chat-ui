@@ -50,6 +50,16 @@ impl super::SessionClient {
         &self,
         input: &SpaceBanCreateInput<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if input.space_id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "space_ban_create: space_id may not be empty".into(),
+            ));
+        }
+        if input.user_id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "space_ban_create: user_id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let mut create_obj = serde_json::json!({
             "spaceId": input.space_id,

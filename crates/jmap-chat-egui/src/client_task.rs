@@ -145,10 +145,18 @@ pub async fn run(
     // The WS stream carries ephemeral events (typing indicators, presence updates)
     // per draft-atwood-jmap-chat-wss-00. SSE remains the primary change-notification
     // transport; WS is additive.
-    let ws_url: Option<String> = match (
-        session.websocket_capability().ok().flatten(),
-        session.supports_chat_websocket(),
-    ) {
+    let ws_cap = match session.websocket_capability() {
+        Ok(cap) => cap,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "failed to parse WebSocket capability; \
+                 server may have sent a malformed capability object — ephemeral events unavailable"
+            );
+            None
+        }
+    };
+    let ws_url: Option<String> = match (ws_cap, session.supports_chat_websocket()) {
         (None, _) => {
             tracing::info!("server has no WebSocket capability; ephemeral events unavailable");
             None
