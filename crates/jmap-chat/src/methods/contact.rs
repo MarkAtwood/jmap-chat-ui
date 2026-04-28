@@ -12,6 +12,15 @@ impl super::SessionClient {
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::ChatContact>, crate::error::ClientError> {
+        if let Some(id_slice) = ids {
+            for id in id_slice.iter() {
+                if id.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "chat_contact_get: ids element may not be empty".into(),
+                    ));
+                }
+            }
+        }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,

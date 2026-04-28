@@ -14,6 +14,15 @@ impl super::SessionClient {
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::Space>, crate::error::ClientError> {
+        if let Some(id_slice) = ids {
+            for id in id_slice.iter() {
+                if id.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "space_get: ids element may not be empty".into(),
+                    ));
+                }
+            }
+        }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
@@ -64,6 +73,13 @@ impl super::SessionClient {
             return Err(crate::error::ClientError::InvalidArgument(
                 "space_destroy: ids may not be empty".into(),
             ));
+        }
+        for id in ids.iter() {
+            if id.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "space_destroy: ids element may not be empty".into(),
+                ));
+            }
         }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
@@ -160,6 +176,11 @@ impl super::SessionClient {
             create_obj["description"] = d.into();
         }
         if let Some(b) = input.icon_blob_id {
+            if b.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "space_create: icon_blob_id may not be empty".into(),
+                ));
+            }
             create_obj["iconBlobId"] = b.into();
         }
         let args = serde_json::json!({
@@ -255,6 +276,13 @@ impl super::SessionClient {
                         }
                         let mut obj = serde_json::json!({ "id": m.id });
                         if let Some(role_ids) = m.role_ids {
+                            for rid in role_ids.iter() {
+                                if rid.is_empty() {
+                                    return Err(crate::error::ClientError::InvalidArgument(
+                                        "space_update: addMembers role_ids element may not be empty".into(),
+                                    ));
+                                }
+                            }
                             obj["roleIds"] = serde_json::Value::Array(
                                 role_ids
                                     .iter()
@@ -299,6 +327,13 @@ impl super::SessionClient {
                         }
                         let mut obj = serde_json::json!({ "id": u.id });
                         if let Some(role_ids) = u.role_ids {
+                            for rid in role_ids.iter() {
+                                if rid.is_empty() {
+                                    return Err(crate::error::ClientError::InvalidArgument(
+                                        "space_update: updateMembers role_ids element may not be empty".into(),
+                                    ));
+                                }
+                            }
                             obj["roleIds"] = serde_json::Value::Array(
                                 role_ids
                                     .iter()
@@ -327,6 +362,11 @@ impl super::SessionClient {
                         }
                         let mut obj = serde_json::json!({ "name": c.name });
                         if let Some(cat) = c.category_id {
+                            if cat.is_empty() {
+                                return Err(crate::error::ClientError::InvalidArgument(
+                                    "space_update: category_id may not be empty".into(),
+                                ));
+                            }
                             obj["categoryId"] = cat.into();
                         }
                         if let Some(pos) = c.position {

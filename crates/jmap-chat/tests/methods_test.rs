@@ -3229,3 +3229,455 @@ async fn space_invite_create_rejects_empty_default_channel_id() {
         "expected InvalidArgument mentioning 'default_channel_id', got {err:?}"
     );
 }
+
+/// Oracle: space_destroy must reject ids containing an empty string.
+#[tokio::test]
+async fn space_destroy_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_destroy(&["space-valid", ""])
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("space_destroy")),
+        "expected InvalidArgument mentioning 'space_destroy', got {err:?}"
+    );
+}
+
+/// Oracle: chat_destroy must reject ids containing an empty string.
+#[tokio::test]
+async fn chat_destroy_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .chat_destroy(&["chat-valid", ""])
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("chat_destroy")),
+        "expected InvalidArgument mentioning 'chat_destroy', got {err:?}"
+    );
+}
+
+/// Oracle: message_destroy must reject ids containing an empty string.
+#[tokio::test]
+async fn message_destroy_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .message_destroy(&["msg-valid", ""])
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("message_destroy")),
+        "expected InvalidArgument mentioning 'message_destroy', got {err:?}"
+    );
+}
+
+/// Oracle: custom_emoji_destroy must reject ids containing an empty string.
+#[tokio::test]
+async fn custom_emoji_destroy_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .custom_emoji_destroy(&["emoji-valid", ""])
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("custom_emoji_destroy")),
+        "expected InvalidArgument mentioning 'custom_emoji_destroy', got {err:?}"
+    );
+}
+
+/// Oracle: space_ban_destroy must reject ids containing an empty string.
+#[tokio::test]
+async fn space_ban_destroy_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_ban_destroy(&["ban-valid", ""])
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("space_ban_destroy")),
+        "expected InvalidArgument mentioning 'space_ban_destroy', got {err:?}"
+    );
+}
+
+/// Oracle: space_invite_destroy must reject ids containing an empty string.
+#[tokio::test]
+async fn space_invite_destroy_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_invite_destroy(&["invite-valid", ""])
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("space_invite_destroy")),
+        "expected InvalidArgument mentioning 'space_invite_destroy', got {err:?}"
+    );
+}
+
+/// Oracle: space_update addMembers must reject role_ids containing an empty string.
+#[tokio::test]
+async fn space_update_rejects_empty_add_member_role_id() {
+    use jmap_chat::SpaceAddMemberInput;
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let role_ids: &[&str] = &["role-valid", ""];
+    let mut m = SpaceAddMemberInput::new("user-1");
+    m.role_ids = Some(role_ids);
+    let members = [m];
+    let mut patch = SpacePatch::default();
+    patch.add_members = Some(&members);
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_update("space-1", &patch)
+        .await
+        .expect_err("empty role_ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("role_ids")),
+        "expected InvalidArgument mentioning 'role_ids', got {err:?}"
+    );
+}
+
+/// Oracle: space_update updateMembers must reject role_ids containing an empty string.
+#[tokio::test]
+async fn space_update_rejects_empty_update_member_role_id() {
+    use jmap_chat::SpaceUpdateMemberInput;
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let role_ids: &[&str] = &["role-valid", ""];
+    let mut u = SpaceUpdateMemberInput::new("user-1");
+    u.role_ids = Some(role_ids);
+    let members = [u];
+    let mut patch = SpacePatch::default();
+    patch.update_members = Some(&members);
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_update("space-1", &patch)
+        .await
+        .expect_err("empty role_ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("role_ids")),
+        "expected InvalidArgument mentioning 'role_ids', got {err:?}"
+    );
+}
+
+/// Oracle: space_update addChannels must reject category_id="" with InvalidArgument.
+#[tokio::test]
+async fn space_update_rejects_empty_add_channel_category_id() {
+    use jmap_chat::SpaceAddChannelInput;
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let mut c = SpaceAddChannelInput::new("general");
+    c.category_id = Some("");
+    let channels = [c];
+    let mut patch = SpacePatch::default();
+    patch.add_channels = Some(&channels);
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_update("space-1", &patch)
+        .await
+        .expect_err("empty category_id must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("category_id")),
+        "expected InvalidArgument mentioning 'category_id', got {err:?}"
+    );
+}
+
+/// Oracle: custom_emoji_create must reject space_id=Some("") with InvalidArgument.
+#[tokio::test]
+async fn custom_emoji_create_rejects_empty_space_id() {
+    use jmap_chat::CustomEmojiCreateInput;
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let mut input = CustomEmojiCreateInput::new("catjam", "blob-001");
+    input.space_id = Some("");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .custom_emoji_create(&input)
+        .await
+        .expect_err("empty space_id must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("space_id")),
+        "expected InvalidArgument mentioning 'space_id', got {err:?}"
+    );
+}
+
+/// Oracle: space_create must reject icon_blob_id=Some("") with InvalidArgument.
+#[tokio::test]
+async fn space_create_rejects_empty_icon_blob_id() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let mut input = SpaceCreateInput::new("Engineering");
+    input.icon_blob_id = Some("");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_create(&input)
+        .await
+        .expect_err("empty icon_blob_id must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("icon_blob_id")),
+        "expected InvalidArgument mentioning 'icon_blob_id', got {err:?}"
+    );
+}
+
+/// Oracle: chat_create Group must reject avatar_blob_id=Some("") with InvalidArgument.
+#[tokio::test]
+async fn chat_create_group_rejects_empty_avatar_blob_id() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .chat_create(&ChatCreateInput::Group {
+            client_id: None,
+            name: "Test Group",
+            member_ids: &["user-1"],
+            description: None,
+            avatar_blob_id: Some(""),
+            message_expiry_seconds: None,
+        })
+        .await
+        .expect_err("empty avatar_blob_id must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("avatar_blob_id")),
+        "expected InvalidArgument mentioning 'avatar_blob_id', got {err:?}"
+    );
+}
+
+/// Oracle: chat_get must reject ids containing an empty string element.
+#[tokio::test]
+async fn chat_get_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .chat_get(Some(&["chat-valid", ""]), None)
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("chat_get")),
+        "expected InvalidArgument mentioning 'chat_get', got {err:?}"
+    );
+}
+
+/// Oracle: message_get must reject ids containing an empty string element.
+#[tokio::test]
+async fn message_get_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .message_get(&["msg-valid", ""], None)
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("message_get")),
+        "expected InvalidArgument mentioning 'message_get', got {err:?}"
+    );
+}
+
+/// Oracle: space_get must reject ids containing an empty string element.
+#[tokio::test]
+async fn space_get_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_get(Some(&["space-valid", ""]), None)
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("space_get")),
+        "expected InvalidArgument mentioning 'space_get', got {err:?}"
+    );
+}
+
+/// Oracle: custom_emoji_get must reject ids containing an empty string element.
+#[tokio::test]
+async fn custom_emoji_get_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .custom_emoji_get(Some(&["emoji-valid", ""]), None)
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("custom_emoji_get")),
+        "expected InvalidArgument mentioning 'custom_emoji_get', got {err:?}"
+    );
+}
+
+/// Oracle: space_ban_get must reject ids containing an empty string element.
+#[tokio::test]
+async fn space_ban_get_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_ban_get(Some(&["ban-valid", ""]), None)
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("space_ban_get")),
+        "expected InvalidArgument mentioning 'space_ban_get', got {err:?}"
+    );
+}
+
+/// Oracle: space_invite_get must reject ids containing an empty string element.
+#[tokio::test]
+async fn space_invite_get_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_invite_get(Some(&["invite-valid", ""]), None)
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("space_invite_get")),
+        "expected InvalidArgument mentioning 'space_invite_get', got {err:?}"
+    );
+}
+
+/// Oracle: read_position_get must reject ids containing an empty string element.
+#[tokio::test]
+async fn read_position_get_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .read_position_get(Some(&["rp-valid", ""]))
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("read_position_get")),
+        "expected InvalidArgument mentioning 'read_position_get', got {err:?}"
+    );
+}
+
+/// Oracle: chat_contact_get must reject ids containing an empty string element.
+#[tokio::test]
+async fn chat_contact_get_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .chat_contact_get(Some(&["contact-valid", ""]), None)
+        .await
+        .expect_err("empty ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("chat_contact_get")),
+        "expected InvalidArgument mentioning 'chat_contact_get', got {err:?}"
+    );
+}
+
+/// Oracle: blob_lookup must reject blob_ids containing an empty string element.
+#[tokio::test]
+async fn blob_lookup_rejects_empty_id_element() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .blob_lookup(&["blob-valid", ""], None)
+        .await
+        .expect_err("empty blob_ids element must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("blob_lookup")),
+        "expected InvalidArgument mentioning 'blob_lookup', got {err:?}"
+    );
+}

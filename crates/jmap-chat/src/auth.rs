@@ -117,9 +117,11 @@ impl AuthProvider for NoneAuth {
 /// Bearer-token authentication (`Authorization: Bearer <token>`).
 #[derive(Clone)]
 pub struct BearerAuth {
-    // Pre-computed at construction: avoids per-request allocation and ensures
-    // that invalid credentials fail at construction, not at the first request.
-    header_value: HeaderValue,
+    // Pre-validated at construction and stored as String: avoids per-request
+    // allocation and ensures invalid credentials fail at construction, not at
+    // the first request. Storing as String eliminates the need for a fallible
+    // to_str() call in auth_header().
+    header_string: String,
 }
 
 impl BearerAuth {
@@ -136,8 +138,10 @@ impl BearerAuth {
                 "BearerAuth token may not be empty or whitespace-only".into(),
             ));
         }
-        let header_value = HeaderValue::from_str(&format!("Bearer {token}"))?;
-        Ok(Self { header_value })
+        let header_string = format!("Bearer {token}");
+        // Validate the header value is legal (no control characters, etc.).
+        HeaderValue::from_str(&header_string)?;
+        Ok(Self { header_string })
     }
 }
 
@@ -153,7 +157,7 @@ impl AuthProvider for BearerAuth {
     fn auth_header(&self) -> Option<(String, String)> {
         Some((
             AUTHORIZATION.as_str().to_string(),
-            self.header_value.to_str().ok()?.to_string(),
+            self.header_string.clone(),
         ))
     }
 }
@@ -163,9 +167,11 @@ impl AuthProvider for BearerAuth {
 /// Credentials are encoded per RFC 7617: `base64(username ":" password)`.
 #[derive(Clone)]
 pub struct BasicAuth {
-    // Pre-computed at construction: avoids per-request allocation and ensures
-    // that invalid credentials fail at construction, not at the first request.
-    header_value: HeaderValue,
+    // Pre-validated at construction and stored as String: avoids per-request
+    // allocation and ensures invalid credentials fail at construction, not at
+    // the first request. Storing as String eliminates the need for a fallible
+    // to_str() call in auth_header().
+    header_string: String,
 }
 
 impl BasicAuth {
@@ -184,8 +190,11 @@ impl BasicAuth {
             ));
         }
         let encoded = BASE64_STANDARD.encode(format!("{username}:{password}").as_bytes());
-        let header_value = HeaderValue::from_str(&format!("Basic {encoded}"))?;
-        Ok(Self { header_value })
+        let header_string = format!("Basic {encoded}");
+        // Validate the header value is legal (base64 is always printable ASCII,
+        // but keep the check for correctness).
+        HeaderValue::from_str(&header_string)?;
+        Ok(Self { header_string })
     }
 }
 
@@ -201,7 +210,7 @@ impl AuthProvider for BasicAuth {
     fn auth_header(&self) -> Option<(String, String)> {
         Some((
             AUTHORIZATION.as_str().to_string(),
-            self.header_value.to_str().ok()?.to_string(),
+            self.header_string.clone(),
         ))
     }
 }

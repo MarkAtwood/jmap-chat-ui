@@ -12,6 +12,15 @@ impl super::SessionClient {
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::CustomEmoji>, crate::error::ClientError> {
+        if let Some(id_slice) = ids {
+            for id in id_slice.iter() {
+                if id.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "custom_emoji_get: ids element may not be empty".into(),
+                    ));
+                }
+            }
+        }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
@@ -70,6 +79,11 @@ impl super::SessionClient {
             "blobId": input.blob_id,
         });
         if let Some(sid) = input.space_id {
+            if sid.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "custom_emoji_create: space_id may not be empty".into(),
+                ));
+            }
             create_obj["spaceId"] = sid.into();
         }
         let client_id = super::resolve_client_id(input.client_id);
@@ -93,6 +107,13 @@ impl super::SessionClient {
             return Err(crate::error::ClientError::InvalidArgument(
                 "custom_emoji_destroy: ids may not be empty".into(),
             ));
+        }
+        for id in ids.iter() {
+            if id.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "custom_emoji_destroy: ids element may not be empty".into(),
+                ));
+            }
         }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({

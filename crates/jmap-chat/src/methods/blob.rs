@@ -58,6 +58,13 @@ impl super::SessionClient {
                 "blob_lookup: blob_ids may not be empty".into(),
             ));
         }
+        for id in blob_ids.iter() {
+            if id.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "blob_lookup: blob_ids element may not be empty".into(),
+                ));
+            }
+        }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,

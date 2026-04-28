@@ -10,6 +10,15 @@ impl super::SessionClient {
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::SpaceBan>, crate::error::ClientError> {
+        if let Some(id_slice) = ids {
+            for id in id_slice.iter() {
+                if id.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "space_ban_get: ids element may not be empty".into(),
+                    ));
+                }
+            }
+        }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
@@ -97,6 +106,13 @@ impl super::SessionClient {
             return Err(crate::error::ClientError::InvalidArgument(
                 "space_ban_destroy: ids may not be empty".into(),
             ));
+        }
+        for id in ids.iter() {
+            if id.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "space_ban_destroy: ids element may not be empty".into(),
+                ));
+            }
         }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({

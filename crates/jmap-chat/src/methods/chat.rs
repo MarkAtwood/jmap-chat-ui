@@ -13,6 +13,15 @@ impl super::SessionClient {
         ids: Option<&[&str]>,
         properties: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::Chat>, crate::error::ClientError> {
+        if let Some(id_slice) = ids {
+            for id in id_slice.iter() {
+                if id.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "chat_get: ids element may not be empty".into(),
+                    ));
+                }
+            }
+        }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
@@ -206,6 +215,11 @@ impl super::SessionClient {
                     obj["description"] = (*d).into();
                 }
                 if let Some(b) = avatar_blob_id {
+                    if b.is_empty() {
+                        return Err(crate::error::ClientError::InvalidArgument(
+                            "chat_create: avatar_blob_id may not be empty".into(),
+                        ));
+                    }
                     obj["avatarBlobId"] = (*b).into();
                 }
                 if let Some(s) = message_expiry_seconds {
@@ -396,6 +410,13 @@ impl super::SessionClient {
             return Err(crate::error::ClientError::InvalidArgument(
                 "chat_destroy: ids may not be empty".into(),
             ));
+        }
+        for id in ids.iter() {
+            if id.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "chat_destroy: ids element may not be empty".into(),
+                ));
+            }
         }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({

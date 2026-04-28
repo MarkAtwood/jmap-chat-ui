@@ -51,6 +51,9 @@ fn apply_chats_loaded() {
 
     assert_eq!(state.chats().len(), 1);
     assert_eq!(state.chats()[0], chat);
+    // Independent oracle: verify specific field values from the hand-written JSON.
+    assert_eq!(state.chats()[0].id, "chat-001");
+    assert_eq!(state.chats()[0].unread_count, 0);
 }
 
 #[test]
@@ -239,6 +242,9 @@ fn apply_chats_delta_adds_new_chat() {
     assert_eq!(state.chats().len(), 1);
     assert_eq!(state.chats()[0], chat);
     assert_eq!(state.chat_display.len(), 1);
+    // Independent oracle: verify specific field values from the hand-written JSON.
+    assert_eq!(state.chats()[0].id, "chat-002");
+    assert_eq!(state.chats()[0].unread_count, 0);
 }
 
 /// Oracle: ChatsDelta with an existing chat ID must replace the existing entry.

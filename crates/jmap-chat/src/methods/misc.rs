@@ -12,6 +12,15 @@ impl super::SessionClient {
         &self,
         ids: Option<&[&str]>,
     ) -> Result<GetResponse<crate::types::ReadPosition>, crate::error::ClientError> {
+        if let Some(id_slice) = ids {
+            for id in id_slice.iter() {
+                if id.is_empty() {
+                    return Err(crate::error::ClientError::InvalidArgument(
+                        "read_position_get: ids element may not be empty".into(),
+                    ));
+                }
+            }
+        }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,

@@ -18,6 +18,13 @@ impl super::SessionClient {
                 "message_get: ids may not be empty".into(),
             ));
         }
+        for id in ids.iter() {
+            if id.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "message_get: ids element may not be empty".into(),
+                ));
+            }
+        }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
             "accountId": account_id,
@@ -285,6 +292,13 @@ impl super::SessionClient {
             return Err(crate::error::ClientError::InvalidArgument(
                 "message_destroy: ids may not be empty".into(),
             ));
+        }
+        for id in ids.iter() {
+            if id.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "message_destroy: ids element may not be empty".into(),
+                ));
+            }
         }
         let (api_url, account_id) = self.session_parts()?;
         let args = serde_json::json!({
