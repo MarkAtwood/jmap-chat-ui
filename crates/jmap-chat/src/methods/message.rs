@@ -149,6 +149,11 @@ impl super::SessionClient {
             "sentAt": input.sent_at.as_str(),
         });
         if let Some(rt) = input.reply_to {
+            if rt.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "message_create: reply_to may not be empty".into(),
+                ));
+            }
             create_obj["replyTo"] = rt.into();
         }
         let args = serde_json::json!({

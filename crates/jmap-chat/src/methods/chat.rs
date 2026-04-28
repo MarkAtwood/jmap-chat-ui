@@ -307,6 +307,11 @@ impl super::SessionClient {
                 let arr = members
                     .iter()
                     .map(|m: &AddMemberInput<'_>| {
+                        if m.id.is_empty() {
+                            return Err(crate::error::ClientError::InvalidArgument(
+                                "chat_update: member id may not be empty".into(),
+                            ));
+                        }
                         let mut obj = serde_json::json!({ "id": m.id });
                         if let Some(ref role) = m.role {
                             obj["role"] = serde_json::to_value(role)?;
@@ -334,6 +339,11 @@ impl super::SessionClient {
                 let arr = umr
                     .iter()
                     .map(|u: &UpdateMemberRoleInput<'_>| {
+                        if u.id.is_empty() {
+                            return Err(crate::error::ClientError::InvalidArgument(
+                                "chat_update: update_member_roles id may not be empty".into(),
+                            ));
+                        }
                         Ok(serde_json::json!({
                             "id": u.id,
                             "role": serde_json::to_value(&u.role)?,

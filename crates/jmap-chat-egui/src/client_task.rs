@@ -393,6 +393,7 @@ pub async fn run(
                         continue;
                     }
                     Some(SseNotification::StateChange(changed)) => {
+                        sse_auth_failed = false; // reset on successful frame
                         sse_backoff_idx = 0; // reset backoff on successful event
                         handle_state_change(
                             Arc::clone(&client),
