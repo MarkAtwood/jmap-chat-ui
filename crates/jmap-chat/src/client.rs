@@ -194,8 +194,8 @@ impl JmapChatClient {
     /// errors from successful responses for individual invocations.
     ///
     /// Returns [`ClientError::Parse`] if the server returns duplicate call ids,
-    /// which violates RFC 8620 §3.3 ("each method call id MUST be unique within
-    /// a request").
+    /// which violates RFC 8620 §3.4 (the method responses array must not contain
+    /// duplicate call ids).
     ///
     /// Spec: RFC 8620 §3.3 / §3.4
     pub async fn call_batch(

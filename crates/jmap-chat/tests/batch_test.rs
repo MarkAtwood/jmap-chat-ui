@@ -4,7 +4,9 @@
 // asserts key fields of the response.  Fixtures are in tests/fixtures/methods/
 // (response shapes) and tests/fixtures/jmap/ (request shapes).
 
-use jmap_chat::{JmapChatClient, JmapRequestBuilder, PushSubscriptionCreateInput};
+use jmap_chat::{
+    ChatPushConfig, ClientError, JmapChatClient, JmapRequestBuilder, PushSubscriptionCreateInput,
+};
 use wiremock::matchers::{body_json, method};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -222,4 +224,102 @@ async fn push_subscription_create_without_chat_push_uses_core_only() {
         )
         .await
         .expect("push_subscription_create without chatPush must succeed");
+}
+
+// ---------------------------------------------------------------------------
+// call_batch duplicate call_id tests
+// ---------------------------------------------------------------------------
+
+/// Oracle: `call_batch` doc comment — "Returns `ClientError::Parse` if the
+/// server returns duplicate call ids" (RFC 8620 §3.3: call ids MUST be unique
+/// within a request, so a server that echoes the same id twice is malformed).
+///
+/// The fixture is hand-written: two `methodResponses` entries both carrying
+/// call id `"r1"`.  No fixture file is needed; the body is inlined.
+#[tokio::test]
+async fn call_batch_duplicate_call_id_returns_parse_error() {
+    let server = MockServer::start().await;
+    // Hand-written response with duplicate call id "r1" — independent oracle
+    // derived directly from RFC 8620 §3.4 methodResponses structure.
+    let duplicate_response = serde_json::json!({
+        "sessionState": "s1",
+        "methodResponses": [
+            ["Chat/get", {"accountId": "account1", "list": [], "state": "s1"}, "r1"],
+            ["Message/get", {"accountId": "account1", "list": [], "state": "s1"}, "r1"]
+        ]
+    });
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&duplicate_response))
+        .mount(&server)
+        .await;
+
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        &server.uri(),
+    )
+    .unwrap();
+
+    let req = JmapRequestBuilder::new(&["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:chat"])
+        .add_call(
+            "Chat/get",
+            serde_json::json!({"accountId": "account1", "ids": null}),
+            "r1",
+        )
+        .build();
+
+    let err = client
+        .call_batch(&server.uri(), &req)
+        .await
+        .expect_err("duplicate call id must be rejected");
+
+    assert!(
+        matches!(&err, ClientError::Parse(msg) if msg.contains("duplicate")),
+        "expected Parse error mentioning 'duplicate', got {err:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// push_subscription_create duplicate accountId tests
+// ---------------------------------------------------------------------------
+
+/// Oracle: `push_subscription_create` doc comment / source — the function
+/// validates `chat_push` entries for duplicate `accountId` values before
+/// making any network call and returns `ClientError::InvalidArgument`.
+///
+/// No mock server needed: the guard fires synchronously before the HTTP layer.
+#[tokio::test]
+async fn push_subscription_create_duplicate_account_id_returns_invalid_argument() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "https://example.invalid",
+    )
+    .unwrap();
+    // Minimal Session — apiUrl is never reached because the guard fires first.
+    let session = test_session("https://example.invalid/api");
+
+    let cfg = ChatPushConfig {
+        kinds: None,
+        chat_ids: None,
+        properties: None,
+        urgency: None,
+        mention_urgency: None,
+    };
+    // Two entries with the same accountId "account1" — this is the duplicate.
+    let chat_push: &[(&str, ChatPushConfig)] = &[("account1", cfg.clone()), ("account1", cfg)];
+
+    let err = client
+        .with_session(&session)
+        .push_subscription_create(
+            &PushSubscriptionCreateInput::new("device-xyz", "https://push.example.com/ep")
+                .with_chat_push(chat_push),
+        )
+        .await
+        .expect_err("duplicate accountId must be rejected before any network call");
+
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("duplicate")),
+        "expected InvalidArgument mentioning 'duplicate', got {err:?}"
+    );
 }

@@ -195,10 +195,17 @@ pub struct TypingResponse {
 /// compile-time check for this — test it by serializing a struct where the
 /// field is `Patch::Keep`.
 ///
-/// In practice, all structs in this crate build their patch map manually via
-/// [`Patch::map_entry`] rather than deriving `Serialize`, which avoids the
-/// attribute requirement entirely. See the `patch_keep_via_map_entry` test for
-/// the canonical pattern.
+/// Two patterns exist in this crate and both require the attribute:
+///
+/// - **Manual map entry** (patch structs): call [`Patch::map_entry`] per field
+///   and insert the result into a `serde_json::Map`. The attribute is not
+///   strictly needed here because `map_entry` handles `Keep` explicitly, but
+///   it is still required if the struct is ever passed through `serde::Serialize`
+///   directly. See the `patch_keep_via_map_entry` test for the canonical example.
+/// - **`#[derive(Serialize)]`** (event types such as `ChatPresenceEvent`): the
+///   attribute `#[serde(skip_serializing_if = "Patch::is_keep")]` **must** be
+///   present on every `Patch<T>` field, or serializing a `Keep` variant will
+///   produce a runtime error.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum Patch<T> {
     #[default]
