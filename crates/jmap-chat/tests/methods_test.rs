@@ -3066,3 +3066,117 @@ async fn chat_update_rejects_empty_update_member_role_id() {
         "expected InvalidArgument mentioning 'update_member_roles id', got {err:?}"
     );
 }
+
+/// Oracle: space_update must reject remove_members with an empty ID.
+#[tokio::test]
+async fn space_update_rejects_empty_remove_member_id() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let ids = [""];
+    let mut patch = SpacePatch::default();
+    patch.remove_members = Some(&ids);
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_update("space-1", &patch)
+        .await
+        .expect_err("empty remove_members id must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("removeMembers")),
+        "expected InvalidArgument mentioning 'removeMembers', got {err:?}"
+    );
+}
+
+/// Oracle: space_update must reject remove_channels with an empty ID.
+#[tokio::test]
+async fn space_update_rejects_empty_remove_channel_id() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let ids = [""];
+    let mut patch = SpacePatch::default();
+    patch.remove_channels = Some(&ids);
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_update("space-1", &patch)
+        .await
+        .expect_err("empty remove_channels id must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("removeChannels")),
+        "expected InvalidArgument mentioning 'removeChannels', got {err:?}"
+    );
+}
+
+/// Oracle: chat_update must reject remove_members with an empty ID.
+#[tokio::test]
+async fn chat_update_rejects_empty_remove_member_id() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let ids = [""];
+    let mut patch = ChatPatch::default();
+    patch.remove_members = Some(&ids);
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .chat_update("chat-1", &patch)
+        .await
+        .expect_err("empty remove_members id must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("remove_members id")),
+        "expected InvalidArgument mentioning 'remove_members id', got {err:?}"
+    );
+}
+
+/// Oracle: message_query must reject thread_root_id=Some("") with InvalidArgument.
+#[tokio::test]
+async fn message_query_rejects_empty_thread_root_id() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let mut input = MessageQueryInput::default();
+    input.chat_id = Some("chat-1");
+    input.thread_root_id = Some("");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .message_query(&input)
+        .await
+        .expect_err("empty thread_root_id must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("thread_root_id")),
+        "expected InvalidArgument mentioning 'thread_root_id', got {err:?}"
+    );
+}
+
+/// Oracle: space_invite_create must reject default_channel_id=Some("") with InvalidArgument.
+#[tokio::test]
+async fn space_invite_create_rejects_empty_default_channel_id() {
+    let client = JmapChatClient::new(
+        jmap_chat::DefaultTransport,
+        jmap_chat::NoneAuth,
+        "http://127.0.0.1:1",
+    )
+    .expect("client construction must succeed");
+    let mut input = SpaceInviteCreateInput::new("space-1");
+    input.default_channel_id = Some("");
+    let err = client
+        .with_session(&test_session("http://127.0.0.1:1/api"))
+        .space_invite_create(&input)
+        .await
+        .expect_err("empty default_channel_id must be rejected");
+    assert!(
+        matches!(&err, ClientError::InvalidArgument(msg) if msg.contains("default_channel_id")),
+        "expected InvalidArgument mentioning 'default_channel_id', got {err:?}"
+    );
+}

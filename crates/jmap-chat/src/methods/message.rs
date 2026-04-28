@@ -71,6 +71,11 @@ impl super::SessionClient {
             filter.insert("text".into(), t.into());
         }
         if let Some(tid) = input.thread_root_id {
+            if tid.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "message_query: thread_root_id may not be empty".into(),
+                ));
+            }
             filter.insert("threadRootId".into(), tid.into());
         }
         if let Some(a) = input.after {

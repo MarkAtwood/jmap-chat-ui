@@ -63,6 +63,11 @@ impl super::SessionClient {
         let (api_url, account_id) = self.session_parts()?;
         let mut obj = serde_json::json!({ "spaceId": input.space_id });
         if let Some(ch) = input.default_channel_id {
+            if ch.is_empty() {
+                return Err(crate::error::ClientError::InvalidArgument(
+                    "space_invite_create: default_channel_id may not be empty".into(),
+                ));
+            }
             obj["defaultChannelId"] = ch.into();
         }
         if let Some(ea) = input.expires_at {
