@@ -1507,7 +1507,7 @@ impl<'de> serde::Deserialize<'de> for PushUrgency {
 
 /// Per-account push configuration for a PushSubscription.
 /// Spec: draft-atwood-jmap-chat-push-00 §3.2
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatPushConfig {
     /// Chat kinds for which push is enabled (`"direct"`, `"group"`, `"channel"`).

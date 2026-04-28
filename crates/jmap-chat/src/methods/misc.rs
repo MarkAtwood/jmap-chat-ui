@@ -105,6 +105,11 @@ impl super::SessionClient {
         id: &str,
         patch: &PresenceStatusPatch<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "presence_status_update: id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let mut patch_map = serde_json::Map::new();
         if let Some(p) = &patch.presence {

@@ -49,6 +49,16 @@ impl super::SessionClient {
         &self,
         input: &CustomEmojiCreateInput<'_>,
     ) -> Result<SetResponse, crate::error::ClientError> {
+        if input.name.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "custom_emoji_create: name may not be empty".into(),
+            ));
+        }
+        if input.blob_id.is_empty() {
+            return Err(crate::error::ClientError::InvalidArgument(
+                "custom_emoji_create: blob_id may not be empty".into(),
+            ));
+        }
         let (api_url, account_id) = self.session_parts()?;
         let mut create_obj = serde_json::json!({
             "name": input.name,

@@ -1061,4 +1061,66 @@ mod tests {
         let session: Session = serde_json::from_value(val).expect("must deserialize");
         assert!(!session.supports_quotas());
     }
+
+    // ---------------------------------------------------------------------------
+    // Id / UTCDate constructor and Borrow<str> tests
+    // ---------------------------------------------------------------------------
+
+    /// Oracle: Id::new rejects an empty string with EmptyError.
+    /// The non-empty invariant is the core contract of the Id type.
+    #[test]
+    fn id_new_rejects_empty_string() {
+        let err = Id::new("").expect_err("empty Id must be rejected");
+        assert!(
+            err.to_string().contains("Id"),
+            "EmptyError message must mention 'Id', got: {err}"
+        );
+    }
+
+    /// Oracle: Id::new accepts a non-empty string and preserves it.
+    #[test]
+    fn id_new_accepts_non_empty_string() {
+        let id = Id::new("abc123").expect("non-empty Id must be accepted");
+        assert_eq!(id.as_str(), "abc123");
+    }
+
+    /// Oracle: UTCDate::new rejects an empty string with EmptyError.
+    #[test]
+    fn utcdate_new_rejects_empty_string() {
+        let err = UTCDate::new("").expect_err("empty UTCDate must be rejected");
+        assert!(
+            err.to_string().contains("UTCDate"),
+            "EmptyError message must mention 'UTCDate', got: {err}"
+        );
+    }
+
+    /// Oracle: UTCDate::new accepts a non-empty string and preserves it.
+    #[test]
+    fn utcdate_new_accepts_non_empty_string() {
+        let ts = UTCDate::new("2024-01-15T00:00:00Z").expect("non-empty UTCDate must be accepted");
+        assert_eq!(ts.as_str(), "2024-01-15T00:00:00Z");
+    }
+
+    /// Oracle: Id implements Borrow<str>, enabling HashMap<Id, V>::get("literal").
+    ///
+    /// The impl_string_newtype! macro adds `impl Borrow<str> for Id`.
+    /// This test verifies the impl is correct: HashMap::get requires that
+    /// id.borrow() == "account1" when Id::from("account1") is the key.
+    #[test]
+    fn id_borrow_str_enables_hashmap_lookup() {
+        use std::borrow::Borrow;
+        use std::collections::HashMap;
+
+        let mut map: HashMap<Id, &str> = HashMap::new();
+        let key = Id::new("account1").expect("non-empty");
+        map.insert(key, "value1");
+
+        // Verify Borrow<str> contract: borrowed form equals the key's string.
+        let key2 = Id::new("account1").expect("non-empty");
+        assert_eq!(key2.borrow() as &str, "account1");
+
+        // HashMap::get with a &str literal only works if Borrow<str> is correct.
+        assert_eq!(map.get("account1"), Some(&"value1"));
+        assert_eq!(map.get("other"), None);
+    }
 }
