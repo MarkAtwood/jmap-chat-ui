@@ -89,6 +89,18 @@ pub trait AuthProvider: Send + Sync {
     /// every request.
     ///
     /// Returns `None` when no `Authorization` header is required.
+    ///
+    /// # Implementation contract
+    ///
+    /// The returned strings **must** be valid HTTP field values (RFC 9110 §5):
+    /// - Header name: lowercase ASCII token characters only (no spaces, no
+    ///   control characters); e.g. `"authorization"`.
+    /// - Header value: visible ASCII characters (0x21–0x7E) and horizontal tab
+    ///   (0x09) only; no other control characters.
+    ///
+    /// Implementations that violate this contract will cause a panic in the
+    /// WebSocket connection path (`connect_ws`), which parses the returned
+    /// strings back into typed header values.
     fn auth_header(&self) -> Option<(String, String)>;
 }
 
